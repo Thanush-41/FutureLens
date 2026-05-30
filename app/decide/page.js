@@ -44,10 +44,10 @@ function DecideContent() {
   const stages = [
     { agent: 'Context Agent', text: 'Loading your profile...', icon: Users, color: 'blue' },
     { agent: 'Scenario Agent', text: 'Imagining Conservative, Balanced & Aggressive paths...', icon: Workflow, color: 'violet' },
-    { agent: 'Scenario Agent', text: 'Generating timelines and key drivers...', icon: Workflow, color: 'violet' },
     { agent: 'Financial Agent', text: 'Projecting income, savings & net worth...', icon: BarChart3, color: 'emerald' },
     { agent: 'Career Agent', text: 'Evaluating career growth & employability...', icon: Workflow, color: 'blue' },
     { agent: 'Lifestyle Agent', text: 'Analyzing work-life, stress & happiness...', icon: Sparkles, color: 'amber' },
+    { agent: 'Board of Directors', text: 'Convening Musk, Buffett, Jobs, Naval, Huberman & Mukund...', icon: Sparkles, color: 'violet' },
     { agent: 'FutureLens', text: 'Synthesizing your decision dossier...', icon: Sparkles, color: 'violet' },
   ]
 

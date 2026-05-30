@@ -230,6 +230,103 @@ async function runLifestyle({ profile, decision, scenarios }) {
 }
 
 // =====================================================
+// AGENT 6: Personal Board of Directors
+// =====================================================
+const boardSchema = {
+  type: 'object',
+  properties: {
+    board: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          advisor_id: { type: 'string', enum: ['elon', 'buffett', 'jobs', 'naval', 'huberman', 'mukund'] },
+          overall_opinion: { type: 'string', description: '2-3 sentences in this advisor\'s authentic voice and philosophy' },
+          biggest_opportunity: { type: 'string', description: '1 sentence on what excites them most about the decision' },
+          biggest_risk: { type: 'string', description: '1 sentence on what concerns them most' },
+          preferred_path: { type: 'string', enum: ['conservative', 'balanced', 'aggressive'] },
+          confidence: { type: 'integer', description: '0-100' },
+          one_line_advice: { type: 'string', description: 'A memorable, quote-worthy single sentence representing their philosophy' },
+        },
+        required: ['advisor_id', 'overall_opinion', 'biggest_opportunity', 'biggest_risk', 'preferred_path', 'confidence', 'one_line_advice'],
+      },
+    },
+    consensus: {
+      type: 'object',
+      properties: {
+        conservative_votes: { type: 'integer' },
+        balanced_votes: { type: 'integer' },
+        aggressive_votes: { type: 'integer' },
+        majority_path: { type: 'string', enum: ['conservative', 'balanced', 'aggressive'] },
+        key_disagreement: { type: 'string', description: '2 sentences summarizing where the board most disagrees' },
+      },
+      required: ['conservative_votes', 'balanced_votes', 'aggressive_votes', 'majority_path', 'key_disagreement'],
+    },
+  },
+  required: ['board', 'consensus'],
+}
+
+const BOARD_SYSTEM = `You are simulating a Personal Board of Directors meeting for FutureLens. Six legendary advisors weigh in on the user's decision. Each must speak authentically in their own voice and philosophy. They MUST disagree naturally — consensus is NOT the goal; revealing trade-offs IS.
+
+THE ADVISORS:
+
+1. elon — ELON MUSK (Visionary Innovator)
+   Philosophy: First principles. Civilization-scale impact. Optimize for breakthrough outcomes. Accept short-term pain for long-term transformation.
+   Evaluates: magnitude of opportunity, potential for innovation, long-term impact, competitive advantage, speed of execution.
+   Asks: "Does this create something important? What if constraints were removed? Is the upside worth the risk? Can this become 10x bigger?"
+   Style: Direct, ambitious, first-principles driven.
+   Bias: tolerates extreme risk; can underestimate personal stress.
+
+2. buffett — WARREN BUFFETT (Value Investor)
+   Philosophy: Never lose money. Protect downside before upside. Long-term compounding. Avoid unnecessary risk.
+   Evaluates: financial stability, opportunity cost, risk-adjusted return, probability of success, sustainability.
+   Asks: "What if everything goes wrong? Can the downside be survived? Worth the risk? Would I still make this in 10 years?"
+   Style: Calm, logical, probability-based.
+   Bias: can be overly conservative.
+
+3. jobs — STEVE JOBS (Product Visionary)
+   Philosophy: Build something people love. Craftsmanship. Meaning over money. Simplicity equals excellence.
+   Evaluates: quality, user experience, purpose, creativity, differentiation.
+   Asks: "Does this create something remarkable? Is this meaningful work? Will people truly care?"
+   Style: Passionate, opinionated, product-focused.
+   Bias: can ignore practical constraints.
+
+4. naval — NAVAL RAVIKANT (Leverage & Freedom Advisor)
+   Philosophy: Seek ownership, not income. Build leverage through code, capital, media, people. Optimize for freedom. Think in decades.
+   Evaluates: ownership, leverage, scalability, long-term wealth, freedom.
+   Asks: "Does this increase leverage? Freedom? Wealth while you sleep? Is this compounding?"
+   Style: Philosophical, concise, strategic.
+   Bias: can undervalue short-term stability.
+
+5. huberman — ANDREW HUBERMAN (Human Performance Coach)
+   Philosophy: Sustainable success needs sustainable biology. Energy is the foundation. Performance depends on health.
+   Evaluates: stress, sleep, physical health, mental health, sustainability.
+   Asks: "Can you sustain this for years? What happens to sleep? Stress? Does this improve or damage performance?"
+   Style: Scientific, evidence-based, practical.
+   Bias: too cautious about aggressive opportunities.
+
+6. mukund — MUKUND JHA (Product & Growth Strategist)
+   Philosophy: Customer truth beats assumptions. Execution beats ideas. Validation before scale.
+   Evaluates: product-market fit, customer demand, growth, execution, timing.
+   Asks: "Have you validated? What evidence supports demand? Can this scale? What are customers saying?"
+   Style: Practical, customer-focused, execution-oriented.
+   Bias: may prioritize validation over bold experimentation.
+
+RULES:
+- Each advisor MUST have a distinct voice and pick a preferred_path that authentically reflects their philosophy.
+- Force disagreement: at least 2 different preferred_paths must appear across the 6 advisors. Ideally 3.
+- one_line_advice must be quote-worthy and feel like the advisor actually said it.
+- Confidence is the advisor's confidence in THEIR own recommendation, not the decision quality.
+- Compute consensus votes accurately based on preferred_path choices.
+- Return ONLY valid JSON conforming to the schema.`
+
+async function runBoard({ profile, decision, scenarios }) {
+  const pathsSummary = scenarios.paths.map(p => `\n[${p.type.toUpperCase()}] ${p.title}\nSummary: ${p.summary}\nNarrative: ${p.narrative}`).join('\n')
+  const prompt = `${profileToContext(profile)}\n\nDECISION: ${decision}\n\nSCENARIOS UNDER DISCUSSION:${pathsSummary}\n\nConvene the board meeting. All 6 advisors must weigh in. Disagreement encouraged.`
+  return generateJSON({ system: BOARD_SYSTEM, prompt, schema: boardSchema, temperature: 0.85, maxOutputTokens: 4096 })
+}
+
+// =====================================================
 // ROUTES
 // =====================================================
 export async function POST(req, { params }) {
@@ -252,17 +349,18 @@ export async function POST(req, { params }) {
       // Agent 2: Scenarios
       const scenarios = await runScenarios({ profile, decision })
 
-      // Agents 3, 4, 5 in PARALLEL (all depend on scenarios but not each other)
-      const [financial, career, lifestyle] = await Promise.all([
+      // Agents 3, 4, 5, 6 in PARALLEL
+      const [financial, career, lifestyle, board] = await Promise.all([
         runFinancial({ profile, decision, scenarios }).catch(e => ({ error: e.message })),
         runCareer({ profile, decision, scenarios }).catch(e => ({ error: e.message })),
         runLifestyle({ profile, decision, scenarios }).catch(e => ({ error: e.message })),
+        runBoard({ profile, decision, scenarios }).catch(e => ({ error: e.message })),
       ])
 
       const id = uuidv4()
       const doc = {
         id, decision, profile_snapshot: profile,
-        scenarios, financial, career, lifestyle,
+        scenarios, financial, career, lifestyle, board,
         createdAt: new Date().toISOString(),
       }
       try { const db = await getDb(); await db.collection('simulations').insertOne({ ...doc }) } catch (e) { console.error('Mongo sim err:', e.message) }

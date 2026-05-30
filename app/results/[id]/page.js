@@ -2,8 +2,17 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter, useParams } from 'next/navigation'
-import { Eye, Sparkles, BarChart3, Workflow, TrendingUp, TrendingDown, Calendar, Target, Shield, ChevronRight, AlertTriangle, Check, Loader2, Briefcase, Heart, Activity, Smile, Clock, MapPin } from 'lucide-react'
+import { Eye, Sparkles, BarChart3, Workflow, TrendingUp, TrendingDown, Calendar, Target, Shield, ChevronRight, AlertTriangle, Check, Loader2, Briefcase, Heart, Activity, Smile, Clock, MapPin, Quote, Users2, Gavel } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+
+const advisorMeta = {
+  elon:     { name: 'Elon Musk',        role: 'Visionary Innovator',     initials: 'EM', from: 'from-violet-500',  to: 'to-fuchsia-600',  ring: 'ring-violet-500/40',  text: 'text-violet-300',  bg: 'bg-violet-500/10',  border: 'border-violet-500/20'  },
+  buffett:  { name: 'Warren Buffett',   role: 'Value Investor',          initials: 'WB', from: 'from-emerald-500', to: 'to-teal-600',     ring: 'ring-emerald-500/40', text: 'text-emerald-300', bg: 'bg-emerald-500/10', border: 'border-emerald-500/20' },
+  jobs:     { name: 'Steve Jobs',       role: 'Product Visionary',       initials: 'SJ', from: 'from-zinc-300',    to: 'to-zinc-500',     ring: 'ring-zinc-300/40',    text: 'text-zinc-200',    bg: 'bg-zinc-500/10',    border: 'border-zinc-400/20'    },
+  naval:    { name: 'Naval Ravikant',   role: 'Leverage & Freedom',      initials: 'NR', from: 'from-blue-500',    to: 'to-indigo-600',   ring: 'ring-blue-500/40',    text: 'text-blue-300',    bg: 'bg-blue-500/10',    border: 'border-blue-500/20'    },
+  huberman: { name: 'Andrew Huberman',  role: 'Human Performance',       initials: 'AH', from: 'from-pink-500',    to: 'to-rose-600',     ring: 'ring-pink-500/40',    text: 'text-pink-300',    bg: 'bg-pink-500/10',    border: 'border-pink-500/20'    },
+  mukund:   { name: 'Mukund Jha',       role: 'Product & Growth',        initials: 'MJ', from: 'from-amber-500',   to: 'to-orange-600',   ring: 'ring-amber-500/40',   text: 'text-amber-300',   bg: 'bg-amber-500/10',   border: 'border-amber-500/20'   },
+}
 
 const pathStyle = {
   conservative: { label: 'Conservative', color: 'blue',  accent: 'from-blue-500/20 to-blue-500/0' },
@@ -98,6 +107,11 @@ export default function ResultsPage() {
             {data.decision}
           </h1>
         </div>
+
+        {/* Personal Board of Directors (Agent 6) */}
+        {data.board?.board?.length > 0 && (
+          <BoardRoom board={data.board} />
+        )}
 
         {/* Paths overview — 3 timeline cards */}
         <section className="mt-12 animate-fade-up delay-100">
@@ -474,6 +488,145 @@ export default function ResultsPage() {
         </div>
       </main>
     </div>
+  )
+}
+
+function BoardRoom({ board }) {
+  const [openId, setOpenId] = useState(null)
+  const advisors = board.board || []
+  const consensus = board.consensus || {}
+  const order = ['elon', 'buffett', 'jobs', 'naval', 'huberman', 'mukund']
+  const sorted = order.map(id => advisors.find(a => a.advisor_id === id)).filter(Boolean)
+
+  const totalVotes = (consensus.conservative_votes || 0) + (consensus.balanced_votes || 0) + (consensus.aggressive_votes || 0)
+  const votePct = (n) => totalVotes ? (n / totalVotes) * 100 : 0
+
+  return (
+    <section className="mt-12 animate-fade-up delay-100">
+      <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
+        <div>
+          <div className="text-xs uppercase tracking-widest text-violet-400 mb-1 font-mono flex items-center gap-2">
+            <Gavel className="w-3 h-3" /> Agent 6 · Board of Directors
+          </div>
+          <h2 className="text-2xl font-semibold tracking-tight">Six minds. One decision.</h2>
+        </div>
+        <div className="text-xs text-white/40 font-mono">Disagreement is the feature, not a bug</div>
+      </div>
+
+      {/* Consensus vote bar */}
+      <div className="gradient-border rounded-2xl p-6 mb-5 relative overflow-hidden">
+        <div className="absolute inset-0 glow-purple opacity-30 pointer-events-none" />
+        <div className="relative">
+          <div className="flex items-center justify-between mb-3">
+            <div className="text-[10px] uppercase tracking-widest text-white/40 font-mono">The board votes</div>
+            <div className="text-xs font-mono">
+              <span className="text-white/40">Majority: </span>
+              <span className={`text-${pathStyle[consensus.majority_path]?.color}-400 capitalize font-medium`}>{consensus.majority_path}</span>
+            </div>
+          </div>
+          <div className="flex h-3 rounded-full overflow-hidden bg-white/5 mb-3">
+            {consensus.conservative_votes > 0 && <div className="bg-blue-400 flex items-center justify-center text-[10px] font-mono text-black/70" style={{ width: `${votePct(consensus.conservative_votes)}%` }}>{consensus.conservative_votes}</div>}
+            {consensus.balanced_votes > 0 && <div className="bg-violet-400 flex items-center justify-center text-[10px] font-mono text-black/70" style={{ width: `${votePct(consensus.balanced_votes)}%` }}>{consensus.balanced_votes}</div>}
+            {consensus.aggressive_votes > 0 && <div className="bg-amber-400 flex items-center justify-center text-[10px] font-mono text-black/70" style={{ width: `${votePct(consensus.aggressive_votes)}%` }}>{consensus.aggressive_votes}</div>}
+          </div>
+          <div className="flex items-center justify-between text-[10px] font-mono">
+            <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-blue-400" /><span className="text-white/55">Conservative · {consensus.conservative_votes}</span></div>
+            <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-violet-400" /><span className="text-white/55">Balanced · {consensus.balanced_votes}</span></div>
+            <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-amber-400" /><span className="text-white/55">Aggressive · {consensus.aggressive_votes}</span></div>
+          </div>
+          {consensus.key_disagreement && (
+            <div className="mt-5 pt-4 border-t border-white/5">
+              <div className="text-[10px] uppercase tracking-widest text-white/40 font-mono mb-1.5 flex items-center gap-1.5"><AlertTriangle className="w-2.5 h-2.5" /> Where the board disagrees</div>
+              <p className="text-sm text-white/70 leading-relaxed italic">&ldquo;{consensus.key_disagreement}&rdquo;</p>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Advisor portraits row */}
+      <div className="grid grid-cols-3 lg:grid-cols-6 gap-2 mb-5">
+        {sorted.map(a => {
+          const meta = advisorMeta[a.advisor_id]
+          if (!meta) return null
+          const isOpen = openId === a.advisor_id
+          const pathPs = pathStyle[a.preferred_path]
+          return (
+            <button key={a.advisor_id} onClick={() => setOpenId(isOpen ? null : a.advisor_id)}
+              className={`gradient-border rounded-2xl p-4 transition-all relative group ${isOpen ? 'ring-2 ' + meta.ring : 'hover:bg-white/[0.03]'}`}>
+              <div className={`w-12 h-12 mx-auto rounded-full bg-gradient-to-br ${meta.from} ${meta.to} flex items-center justify-center text-white text-sm font-semibold mb-3 shadow-lg`}>
+                {meta.initials}
+              </div>
+              <div className="text-xs font-medium text-center text-white/90 leading-tight">{meta.name}</div>
+              <div className="text-[10px] text-white/40 text-center mt-0.5 font-mono">{meta.role}</div>
+              <div className="mt-3 flex items-center justify-center gap-1">
+                <div className={`w-1.5 h-1.5 rounded-full bg-${pathPs?.color}-400`} />
+                <span className={`text-[10px] font-mono text-${pathPs?.color}-400 capitalize`}>{a.preferred_path}</span>
+              </div>
+            </button>
+          )
+        })}
+      </div>
+
+      {/* Full board: show all advisors as expandable cards. Open one is highlighted; closed show one_line_advice */}
+      <div className="grid md:grid-cols-2 gap-4">
+        {sorted.map(a => {
+          const meta = advisorMeta[a.advisor_id]
+          const isOpen = openId === a.advisor_id || openId === null
+          const pathPs = pathStyle[a.preferred_path]
+          if (!meta) return null
+          return (
+            <div key={a.advisor_id} className={`gradient-border rounded-2xl p-6 transition-all relative overflow-hidden ${openId === a.advisor_id ? 'ring-2 ' + meta.ring : ''}`}>
+              {/* Subtle accent gradient */}
+              <div className={`absolute -top-12 -right-12 w-32 h-32 rounded-full bg-gradient-to-br ${meta.from} ${meta.to} opacity-10 blur-2xl pointer-events-none`} />
+              <div className="relative">
+                <div className="flex items-start gap-3 mb-4">
+                  <div className={`w-12 h-12 rounded-full bg-gradient-to-br ${meta.from} ${meta.to} flex items-center justify-center text-white text-sm font-semibold flex-shrink-0 shadow-lg`}>
+                    {meta.initials}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between gap-2 flex-wrap">
+                      <h3 className="font-medium leading-tight">{meta.name}</h3>
+                      <div className={`px-2 py-0.5 rounded-full text-[10px] font-mono ${meta.bg} ${meta.text} border ${meta.border}`}>
+                        {a.confidence}% sure
+                      </div>
+                    </div>
+                    <p className={`text-xs ${meta.text} font-mono mt-0.5`}>{meta.role}</p>
+                  </div>
+                </div>
+
+                {/* Pull quote */}
+                <div className="relative pl-5 mb-5">
+                  <Quote className={`absolute left-0 top-0 w-3.5 h-3.5 ${meta.text}`} />
+                  <p className="text-base text-white/90 leading-snug italic font-medium">
+                    {a.one_line_advice}
+                  </p>
+                </div>
+
+                <p className="text-sm text-white/70 leading-relaxed mb-4">{a.overall_opinion}</p>
+
+                <div className="grid grid-cols-2 gap-3 mb-4 text-xs">
+                  <div>
+                    <div className="text-[9px] uppercase tracking-widest text-emerald-400 font-mono mb-1 flex items-center gap-1"><TrendingUp className="w-2.5 h-2.5" /> Biggest opportunity</div>
+                    <p className="text-white/70 leading-snug">{a.biggest_opportunity}</p>
+                  </div>
+                  <div>
+                    <div className="text-[9px] uppercase tracking-widest text-red-400 font-mono mb-1 flex items-center gap-1"><AlertTriangle className="w-2.5 h-2.5" /> Biggest risk</div>
+                    <p className="text-white/70 leading-snug">{a.biggest_risk}</p>
+                  </div>
+                </div>
+
+                <div className="pt-3 border-t border-white/5 flex items-center justify-between text-xs">
+                  <span className="text-white/40 font-mono">VOTES FOR</span>
+                  <div className={`px-2.5 py-1 rounded-full text-[10px] font-mono uppercase tracking-widest bg-${pathPs?.color}-500/10 border border-${pathPs?.color}-500/20 text-${pathPs?.color}-400`}>
+                    {a.preferred_path} Path
+                  </div>
+                </div>
+              </div>
+            </div>
+          )
+        })}
+      </div>
+    </section>
   )
 }
 
