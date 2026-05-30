@@ -56,6 +56,7 @@ export default function LandingPage() {
             <a href="#how" className="hover:text-white transition">How it works</a>
             <a href="#agents" className="hover:text-white transition">AI Agents</a>
             <a href="#examples" className="hover:text-white transition">Examples</a>
+            <button onClick={() => router.push('/history')} className="hover:text-white transition">History</button>
           </div>
           <Button onClick={startFlow} className="bg-white text-black hover:bg-white/90 h-9 px-4 rounded-full text-sm font-medium">
             Start now <ArrowRight className="ml-1.5 w-3.5 h-3.5" />

@@ -1,8 +1,8 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useRouter, useParams } from 'next/navigation'
-import { Eye, Sparkles, BarChart3, Workflow, TrendingUp, TrendingDown, Calendar, Target, Shield, ChevronRight, AlertTriangle, Check, Loader2, Briefcase, Heart, Activity, Smile, Clock, MapPin, Quote, Users2, Gavel, Brain, X, Plus, Send, FileText, Scale, Swords, ArrowRight, ArrowLeft, Award } from 'lucide-react'
+import { useRouter, useParams, usePathname } from 'next/navigation'
+import { Eye, Sparkles, BarChart3, Workflow, TrendingUp, TrendingDown, Calendar, Target, Shield, ChevronRight, AlertTriangle, Check, Loader2, Briefcase, Heart, Activity, Smile, Clock, MapPin, Quote, Users2, Gavel, Brain, X, Plus, Send, FileText, Scale, Swords, ArrowRight, ArrowLeft, Award, Share2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogTrigger } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
@@ -57,6 +57,8 @@ function formatMoney(n, ccy = 'USD') {
 export default function ResultsPage() {
   const router = useRouter()
   const params = useParams()
+  const pathname = usePathname()
+  const isShareRoute = (pathname || '').startsWith('/r/')
   const [data, setData] = useState(null)
   const [activePath, setActivePath] = useState('balanced')
   const [loading, setLoading] = useState(true)
@@ -108,7 +110,7 @@ export default function ResultsPage() {
 
       <nav className="relative z-50 px-6 h-16 flex items-center justify-between max-w-7xl mx-auto border-b border-white/5">
         <div className="flex items-center gap-3">
-          <Button variant="ghost" onClick={() => router.push('/decide')} className="h-9 px-3 rounded-full border border-white/10 hover:bg-white/5 text-xs">
+          <Button variant="ghost" onClick={() => router.push(isShareRoute ? '/' : '/decide')} className="h-9 px-3 rounded-full border border-white/10 hover:bg-white/5 text-xs">
             <ArrowLeft className="w-3.5 h-3.5 mr-1" /> Back
           </Button>
           <button onClick={() => router.push('/')} className="flex items-center gap-2.5">
@@ -117,12 +119,23 @@ export default function ResultsPage() {
             </div>
             <span className="font-semibold tracking-tight hidden sm:inline">FutureLens</span>
           </button>
+          {isShareRoute && (
+            <div className="hidden md:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-violet-500/10 border border-violet-500/30 text-violet-300 text-[10px] font-mono uppercase tracking-widest ml-1">
+              <Share2 className="w-2.5 h-2.5" /> Shared dossier
+            </div>
+          )}
         </div>
         <div className="flex items-center gap-2">
           <BoardButton data={data} />
-          <Button onClick={() => router.push('/decide')} variant="ghost" className="text-sm h-9 rounded-full border border-white/10 hover:bg-white/5">
-            New simulation
-          </Button>
+          {isShareRoute ? (
+            <Button onClick={() => router.push('/onboarding')} className="text-sm h-9 px-4 rounded-full bg-white text-black hover:bg-white/90 font-medium">
+              Try FutureLens
+            </Button>
+          ) : (
+            <Button onClick={() => router.push('/decide')} variant="ghost" className="text-sm h-9 rounded-full border border-white/10 hover:bg-white/5">
+              New simulation
+            </Button>
+          )}
         </div>
       </nav>
 
@@ -1261,13 +1274,17 @@ function FinalReport({ data, router }) {
   const r = data.consensus?.recommendation
   const path = r?.recommended_path || 'balanced'
   const ps = pathStyle[path] || pathStyle.balanced
+  const [copied, setCopied] = useState(false)
 
   const handlePrint = () => {
     if (typeof window !== 'undefined') window.print()
   }
   const handleCopy = async () => {
     try {
-      await navigator.clipboard.writeText(window.location.href)
+      const url = `${window.location.origin}/r/${data.id}`
+      await navigator.clipboard.writeText(url)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
     } catch {}
   }
 
@@ -1339,7 +1356,7 @@ function FinalReport({ data, router }) {
               <FileText className="w-3.5 h-3.5 mr-1.5" /> Save / Print PDF
             </Button>
             <Button onClick={handleCopy} variant="ghost" className="h-10 px-4 rounded-full border border-white/10 hover:bg-white/5 text-sm">
-              Copy link
+              {copied ? <><span className="text-emerald-400 mr-1">✓</span> Copied!</> : <><Share2 className="w-3.5 h-3.5 mr-1.5" /> Copy share link</>}
             </Button>
             <Button onClick={() => router.push('/decide')} variant="ghost" className="h-10 px-4 rounded-full border border-white/10 hover:bg-white/5 text-sm">
               New simulation <ChevronRight className="w-3.5 h-3.5 ml-1" />
