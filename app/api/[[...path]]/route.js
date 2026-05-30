@@ -674,6 +674,17 @@ export async function POST(req, { params }) {
 export async function GET(req, { params }) {
   const segs = params?.path || []
   try {
+    if (segs[0] === 'simulations') {
+      // List simulations
+      const limit = Math.min(50, parseInt(req.nextUrl.searchParams.get('limit')) || 20)
+      const db = await getDb()
+      const items = await db.collection('simulations')
+        .find({}, { projection: { _id: 0, id: 1, decision: 1, createdAt: 1, profile_snapshot: 1, 'consensus.recommendation.recommended_path': 1, 'consensus.recommendation.confidence': 1, 'consensus.recommendation.headline': 1 } })
+        .sort({ createdAt: -1 })
+        .limit(limit)
+        .toArray()
+      return NextResponse.json({ items })
+    }
     if (segs[0] === 'simulate' && segs[1]) {
       const id = segs[1]
       const db = await getDb()
