@@ -327,6 +327,44 @@ async function runBoard({ profile, decision, scenarios }) {
 }
 
 // =====================================================
+// CUSTOM ADVISOR (single arbitrary person)
+// =====================================================
+const singleAdvisorSchema = {
+  type: 'object',
+  properties: {
+    name: { type: 'string' },
+    role: { type: 'string', description: 'A 2-4 word tagline describing the advisor (e.g. "Tech Entrepreneur", "Investor & Philanthropist")' },
+    overall_opinion: { type: 'string', description: '2-3 sentences in this person\'s authentic voice and worldview' },
+    biggest_opportunity: { type: 'string' },
+    biggest_risk: { type: 'string' },
+    preferred_path: { type: 'string', enum: ['conservative', 'balanced', 'aggressive'] },
+    confidence: { type: 'integer' },
+    one_line_advice: { type: 'string', description: 'A quote-worthy, memorable sentence representing their philosophy' },
+  },
+  required: ['name', 'role', 'overall_opinion', 'biggest_opportunity', 'biggest_risk', 'preferred_path', 'confidence', 'one_line_advice'],
+}
+
+const ADVISOR_SYSTEM = `You are simulating a single famous (or family/personal) advisor weighing in on a user's life decision in FutureLens.
+
+Given the advisor's NAME, embody their authentic public voice, philosophy, life experience, and worldview. If the name is a famous person, reflect their known thinking style and values accurately. If it's a generic family role ("my grandmother", "my mentor", "a wise CFO"), invent a believable archetype.
+
+Each response MUST include:
+- A short role/tagline (2-4 words) that captures their identity
+- An authentic 2-3 sentence opinion in their voice
+- Their honest biggest_opportunity and biggest_risk view on the decision
+- Which scenario path they'd choose (conservative / balanced / aggressive)
+- A confidence score 0-100
+- A quote-worthy one-line advice that sounds like something they'd actually say
+
+Be true to the person — don't sanitize. If they would push toward aggression, push hard. If they would urge caution, do so. JSON only.`
+
+async function runSingleAdvisor({ name, profile, decision, scenarios }) {
+  const pathsSummary = (scenarios?.paths || []).map(p => `\n[${p.type.toUpperCase()}] ${p.title}: ${p.summary}`).join('\n')
+  const prompt = `ADVISOR NAME: ${name}\n\n${profileToContext(profile)}\n\nDECISION: ${decision}\n\nSCENARIOS:${pathsSummary}\n\nProvide ${name}'s perspective.`
+  return generateJSON({ system: ADVISOR_SYSTEM, prompt, schema: singleAdvisorSchema, temperature: 0.85, maxOutputTokens: 1024 })
+}
+
+// =====================================================
 // ROUTES
 // =====================================================
 export async function POST(req, { params }) {
@@ -365,6 +403,15 @@ export async function POST(req, { params }) {
       }
       try { const db = await getDb(); await db.collection('simulations').insertOne({ ...doc }) } catch (e) { console.error('Mongo sim err:', e.message) }
       return NextResponse.json(doc)
+    }
+
+    if (path === 'simulate/advisor') {
+      const body = await req.json()
+      const { name, decision, profile, scenarios } = body
+      if (!name || !name.trim()) return NextResponse.json({ error: 'Advisor name is required.' }, { status: 400 })
+      if (!decision || !profile || !scenarios) return NextResponse.json({ error: 'Missing decision/profile/scenarios.' }, { status: 400 })
+      const result = await runSingleAdvisor({ name: name.trim(), profile, decision, scenarios })
+      return NextResponse.json(result)
     }
 
     return NextResponse.json({ error: 'Not found' }, { status: 404 })

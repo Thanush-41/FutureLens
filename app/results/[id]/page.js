@@ -2,8 +2,34 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter, useParams } from 'next/navigation'
-import { Eye, Sparkles, BarChart3, Workflow, TrendingUp, TrendingDown, Calendar, Target, Shield, ChevronRight, AlertTriangle, Check, Loader2, Briefcase, Heart, Activity, Smile, Clock, MapPin, Quote, Users2, Gavel } from 'lucide-react'
+import { Eye, Sparkles, BarChart3, Workflow, TrendingUp, TrendingDown, Calendar, Target, Shield, ChevronRight, AlertTriangle, Check, Loader2, Briefcase, Heart, Activity, Smile, Clock, MapPin, Quote, Users2, Gavel, Brain, X, Plus, Send } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { Dialog, DialogContent, DialogTrigger } from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
+
+// Hash a string to pick a gradient for custom advisors
+function pickGradient(name) {
+  const palettes = [
+    { from: 'from-cyan-500',    to: 'to-blue-600',    ring: 'ring-cyan-500/40',    text: 'text-cyan-300',    bg: 'bg-cyan-500/10',    border: 'border-cyan-500/20' },
+    { from: 'from-rose-500',    to: 'to-pink-600',    ring: 'ring-rose-500/40',    text: 'text-rose-300',    bg: 'bg-rose-500/10',    border: 'border-rose-500/20' },
+    { from: 'from-orange-500',  to: 'to-red-600',     ring: 'ring-orange-500/40',  text: 'text-orange-300',  bg: 'bg-orange-500/10',  border: 'border-orange-500/20' },
+    { from: 'from-lime-500',    to: 'to-green-600',   ring: 'ring-lime-500/40',    text: 'text-lime-300',    bg: 'bg-lime-500/10',    border: 'border-lime-500/20' },
+    { from: 'from-fuchsia-500', to: 'to-purple-600',  ring: 'ring-fuchsia-500/40', text: 'text-fuchsia-300', bg: 'bg-fuchsia-500/10', border: 'border-fuchsia-500/20' },
+    { from: 'from-teal-500',    to: 'to-emerald-600', ring: 'ring-teal-500/40',    text: 'text-teal-300',    bg: 'bg-teal-500/10',    border: 'border-teal-500/20' },
+    { from: 'from-indigo-500',  to: 'to-violet-600',  ring: 'ring-indigo-500/40',  text: 'text-indigo-300',  bg: 'bg-indigo-500/10',  border: 'border-indigo-500/20' },
+    { from: 'from-yellow-500',  to: 'to-amber-600',   ring: 'ring-yellow-500/40',  text: 'text-yellow-300',  bg: 'bg-yellow-500/10',  border: 'border-yellow-500/20' },
+  ]
+  let h = 0
+  for (let i = 0; i < (name || '').length; i++) h = (h * 31 + name.charCodeAt(i)) | 0
+  return palettes[Math.abs(h) % palettes.length]
+}
+
+function getInitials(name) {
+  if (!name) return '?'
+  const parts = name.trim().split(/\s+/)
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase()
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
+}
 
 const advisorMeta = {
   elon:     { name: 'Elon Musk',        role: 'Visionary Innovator',     initials: 'EM', from: 'from-violet-500',  to: 'to-fuchsia-600',  ring: 'ring-violet-500/40',  text: 'text-violet-300',  bg: 'bg-violet-500/10',  border: 'border-violet-500/20'  },
@@ -87,9 +113,12 @@ export default function ResultsPage() {
           </div>
           <span className="font-semibold tracking-tight">FutureLens</span>
         </button>
-        <Button onClick={() => router.push('/decide')} variant="ghost" className="text-sm h-9 rounded-full border border-white/10 hover:bg-white/5">
-          New simulation
-        </Button>
+        <div className="flex items-center gap-2">
+          <BoardButton data={data} />
+          <Button onClick={() => router.push('/decide')} variant="ghost" className="text-sm h-9 rounded-full border border-white/10 hover:bg-white/5">
+            New simulation
+          </Button>
+        </div>
       </nav>
 
       <main className="relative max-w-6xl mx-auto px-6 py-12">
@@ -107,11 +136,6 @@ export default function ResultsPage() {
             {data.decision}
           </h1>
         </div>
-
-        {/* Personal Board of Directors (Agent 6) */}
-        {data.board?.board?.length > 0 && (
-          <BoardRoom board={data.board} />
-        )}
 
         {/* Paths overview — 3 timeline cards */}
         <section className="mt-12 animate-fade-up delay-100">
@@ -159,6 +183,9 @@ export default function ResultsPage() {
             })}
           </div>
         </section>
+
+        {/* Board of Directors CTA card */}
+        <BoardCTA data={data} />
 
         {/* Active path detail */}
         {paths.length > 0 && (() => {
@@ -491,8 +518,74 @@ export default function ResultsPage() {
   )
 }
 
-function BoardRoom({ board }) {
-  const [openId, setOpenId] = useState(null)
+// =====================================================
+// BOARD ROOM (rendered inside a Dialog)
+// =====================================================
+function BoardButton({ data }) {
+  if (!data?.board?.board?.length) return null
+  return (
+    <Dialog>
+      <DialogTrigger asChild>
+        <button className="relative h-9 px-3.5 rounded-full bg-gradient-to-r from-violet-500/20 via-fuchsia-500/20 to-indigo-500/20 border border-violet-500/30 text-violet-200 text-xs font-medium hover:from-violet-500/30 hover:to-indigo-500/30 transition flex items-center gap-1.5 group">
+          <Brain className="w-3.5 h-3.5 group-hover:scale-110 transition" />
+          <span>Ask the Board</span>
+          <span className="hidden sm:inline text-violet-300/60 font-mono">6+</span>
+        </button>
+      </DialogTrigger>
+      <BoardDialogContent data={data} />
+    </Dialog>
+  )
+}
+
+function BoardCTA({ data }) {
+  if (!data?.board?.board?.length) return null
+  const consensus = data.board.consensus || {}
+  return (
+    <div className="mt-10 animate-fade-up delay-150">
+      <Dialog>
+        <DialogTrigger asChild>
+          <button className="w-full text-left gradient-border rounded-2xl p-5 md:p-6 group hover:bg-white/[0.02] transition relative overflow-hidden">
+            <div className="absolute -top-20 -right-20 w-64 h-64 rounded-full bg-gradient-to-br from-violet-500 via-fuchsia-500 to-indigo-500 opacity-10 blur-3xl pointer-events-none" />
+            <div className="relative flex items-center gap-4 md:gap-5">
+              {/* Animated brain icon */}
+              <div className="relative w-12 h-12 md:w-14 md:h-14 rounded-2xl bg-gradient-to-br from-violet-500 via-fuchsia-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-violet-500/30 flex-shrink-0 group-hover:scale-105 transition">
+                <Brain className="w-6 h-6 md:w-7 md:h-7 text-white" strokeWidth={2} />
+                <div className="absolute inset-0 rounded-2xl bg-white/0 group-hover:bg-white/5 transition" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="text-[10px] uppercase tracking-widest text-violet-400 font-mono mb-1">Personal Board of Directors</div>
+                <div className="text-base md:text-lg font-semibold text-gradient leading-tight">Ask Elon, Buffett, Jobs, Naval & more</div>
+                <div className="text-xs text-white/55 mt-1 hidden md:block">
+                  Six legendary minds debate this decision · {consensus.balanced_votes || 0}·{consensus.aggressive_votes || 0}·{consensus.conservative_votes || 0} split · plus add your own
+                </div>
+              </div>
+              {/* Mini advisor avatars stack */}
+              <div className="hidden md:flex items-center -space-x-2 flex-shrink-0">
+                {['elon','buffett','jobs','naval','huberman','mukund'].map((id, i) => {
+                  const m = advisorMeta[id]
+                  return (
+                    <div key={id} className={`w-8 h-8 rounded-full bg-gradient-to-br ${m.from} ${m.to} flex items-center justify-center text-white text-[10px] font-semibold border-2 border-[#0a0a0b]`} style={{ zIndex: 6 - i }}>
+                      {m.initials}
+                    </div>
+                  )
+                })}
+              </div>
+              <ChevronRight className="w-5 h-5 text-white/40 group-hover:text-white group-hover:translate-x-0.5 transition flex-shrink-0" />
+            </div>
+          </button>
+        </DialogTrigger>
+        <BoardDialogContent data={data} />
+      </Dialog>
+    </div>
+  )
+}
+
+function BoardDialogContent({ data }) {
+  const board = data.board
+  const [customAdvisors, setCustomAdvisors] = useState([])
+  const [askName, setAskName] = useState('')
+  const [asking, setAsking] = useState(false)
+  const [askError, setAskError] = useState(null)
   const advisors = board.board || []
   const consensus = board.consensus || {}
   const order = ['elon', 'buffett', 'jobs', 'naval', 'huberman', 'mukund']
@@ -501,132 +594,194 @@ function BoardRoom({ board }) {
   const totalVotes = (consensus.conservative_votes || 0) + (consensus.balanced_votes || 0) + (consensus.aggressive_votes || 0)
   const votePct = (n) => totalVotes ? (n / totalVotes) * 100 : 0
 
+  const askAdvisor = async (name) => {
+    const trimmed = (name || askName).trim()
+    if (!trimmed || asking) return
+    setAsking(true)
+    setAskError(null)
+    try {
+      const res = await fetch('/api/simulate/advisor', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: trimmed,
+          decision: data.decision,
+          profile: data.profile_snapshot,
+          scenarios: data.scenarios,
+        }),
+      })
+      const j = await res.json()
+      if (!res.ok) throw new Error(j.error || 'Failed')
+      setCustomAdvisors(prev => [...prev, { id: 'c-' + Date.now(), ...j }])
+      setAskName('')
+    } catch (e) {
+      setAskError(e.message)
+    } finally {
+      setAsking(false)
+    }
+  }
+
+  const suggestions = ['Sam Altman', 'Oprah Winfrey', 'Jeff Bezos', 'Sundar Pichai', 'Ratan Tata', 'MrBeast', 'Sheryl Sandberg']
+
   return (
-    <section className="mt-12 animate-fade-up delay-100">
-      <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
-        <div>
-          <div className="text-xs uppercase tracking-widest text-violet-400 mb-1 font-mono flex items-center gap-2">
-            <Gavel className="w-3 h-3" /> Agent 6 · Board of Directors
+    <DialogContent className="max-w-5xl w-[95vw] max-h-[92vh] overflow-y-auto bg-[#0a0a0b] border border-white/10 p-0 rounded-2xl">
+      {/* Sticky header */}
+      <div className="sticky top-0 z-10 backdrop-blur-xl bg-[#0a0a0b]/90 border-b border-white/5 px-6 md:px-8 py-5 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-500 via-fuchsia-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-violet-500/30">
+            <Brain className="w-5 h-5 text-white" strokeWidth={2} />
           </div>
-          <h2 className="text-2xl font-semibold tracking-tight">Six minds. One decision.</h2>
-        </div>
-        <div className="text-xs text-white/40 font-mono">Disagreement is the feature, not a bug</div>
-      </div>
-
-      {/* Consensus vote bar */}
-      <div className="gradient-border rounded-2xl p-6 mb-5 relative overflow-hidden">
-        <div className="absolute inset-0 glow-purple opacity-30 pointer-events-none" />
-        <div className="relative">
-          <div className="flex items-center justify-between mb-3">
-            <div className="text-[10px] uppercase tracking-widest text-white/40 font-mono">The board votes</div>
-            <div className="text-xs font-mono">
-              <span className="text-white/40">Majority: </span>
-              <span className={`text-${pathStyle[consensus.majority_path]?.color}-400 capitalize font-medium`}>{consensus.majority_path}</span>
-            </div>
+          <div>
+            <div className="text-[10px] uppercase tracking-widest text-violet-400 font-mono">Board Room</div>
+            <h2 className="text-xl font-semibold tracking-tight">Six minds. One decision.</h2>
           </div>
-          <div className="flex h-3 rounded-full overflow-hidden bg-white/5 mb-3">
-            {consensus.conservative_votes > 0 && <div className="bg-blue-400 flex items-center justify-center text-[10px] font-mono text-black/70" style={{ width: `${votePct(consensus.conservative_votes)}%` }}>{consensus.conservative_votes}</div>}
-            {consensus.balanced_votes > 0 && <div className="bg-violet-400 flex items-center justify-center text-[10px] font-mono text-black/70" style={{ width: `${votePct(consensus.balanced_votes)}%` }}>{consensus.balanced_votes}</div>}
-            {consensus.aggressive_votes > 0 && <div className="bg-amber-400 flex items-center justify-center text-[10px] font-mono text-black/70" style={{ width: `${votePct(consensus.aggressive_votes)}%` }}>{consensus.aggressive_votes}</div>}
-          </div>
-          <div className="flex items-center justify-between text-[10px] font-mono">
-            <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-blue-400" /><span className="text-white/55">Conservative · {consensus.conservative_votes}</span></div>
-            <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-violet-400" /><span className="text-white/55">Balanced · {consensus.balanced_votes}</span></div>
-            <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-amber-400" /><span className="text-white/55">Aggressive · {consensus.aggressive_votes}</span></div>
-          </div>
-          {consensus.key_disagreement && (
-            <div className="mt-5 pt-4 border-t border-white/5">
-              <div className="text-[10px] uppercase tracking-widest text-white/40 font-mono mb-1.5 flex items-center gap-1.5"><AlertTriangle className="w-2.5 h-2.5" /> Where the board disagrees</div>
-              <p className="text-sm text-white/70 leading-relaxed italic">&ldquo;{consensus.key_disagreement}&rdquo;</p>
-            </div>
-          )}
         </div>
       </div>
 
-      {/* Advisor portraits row */}
-      <div className="grid grid-cols-3 lg:grid-cols-6 gap-2 mb-5">
-        {sorted.map(a => {
-          const meta = advisorMeta[a.advisor_id]
-          if (!meta) return null
-          const isOpen = openId === a.advisor_id
-          const pathPs = pathStyle[a.preferred_path]
-          return (
-            <button key={a.advisor_id} onClick={() => setOpenId(isOpen ? null : a.advisor_id)}
-              className={`gradient-border rounded-2xl p-4 transition-all relative group ${isOpen ? 'ring-2 ' + meta.ring : 'hover:bg-white/[0.03]'}`}>
-              <div className={`w-12 h-12 mx-auto rounded-full bg-gradient-to-br ${meta.from} ${meta.to} flex items-center justify-center text-white text-sm font-semibold mb-3 shadow-lg`}>
-                {meta.initials}
-              </div>
-              <div className="text-xs font-medium text-center text-white/90 leading-tight">{meta.name}</div>
-              <div className="text-[10px] text-white/40 text-center mt-0.5 font-mono">{meta.role}</div>
-              <div className="mt-3 flex items-center justify-center gap-1">
-                <div className={`w-1.5 h-1.5 rounded-full bg-${pathPs?.color}-400`} />
-                <span className={`text-[10px] font-mono text-${pathPs?.color}-400 capitalize`}>{a.preferred_path}</span>
-              </div>
-            </button>
-          )
-        })}
-      </div>
+      <div className="p-6 md:p-8">
+        {/* Decision recap */}
+        <div className="mb-6 text-sm text-white/55">
+          <span className="text-white/40 font-mono text-xs uppercase tracking-widest">Re: </span>
+          <span className="italic">&ldquo;{data.decision}&rdquo;</span>
+        </div>
 
-      {/* Full board: show all advisors as expandable cards. Open one is highlighted; closed show one_line_advice */}
-      <div className="grid md:grid-cols-2 gap-4">
-        {sorted.map(a => {
-          const meta = advisorMeta[a.advisor_id]
-          const isOpen = openId === a.advisor_id || openId === null
-          const pathPs = pathStyle[a.preferred_path]
-          if (!meta) return null
-          return (
-            <div key={a.advisor_id} className={`gradient-border rounded-2xl p-6 transition-all relative overflow-hidden ${openId === a.advisor_id ? 'ring-2 ' + meta.ring : ''}`}>
-              {/* Subtle accent gradient */}
-              <div className={`absolute -top-12 -right-12 w-32 h-32 rounded-full bg-gradient-to-br ${meta.from} ${meta.to} opacity-10 blur-2xl pointer-events-none`} />
-              <div className="relative">
-                <div className="flex items-start gap-3 mb-4">
-                  <div className={`w-12 h-12 rounded-full bg-gradient-to-br ${meta.from} ${meta.to} flex items-center justify-center text-white text-sm font-semibold flex-shrink-0 shadow-lg`}>
-                    {meta.initials}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between gap-2 flex-wrap">
-                      <h3 className="font-medium leading-tight">{meta.name}</h3>
-                      <div className={`px-2 py-0.5 rounded-full text-[10px] font-mono ${meta.bg} ${meta.text} border ${meta.border}`}>
-                        {a.confidence}% sure
-                      </div>
-                    </div>
-                    <p className={`text-xs ${meta.text} font-mono mt-0.5`}>{meta.role}</p>
-                  </div>
-                </div>
-
-                {/* Pull quote */}
-                <div className="relative pl-5 mb-5">
-                  <Quote className={`absolute left-0 top-0 w-3.5 h-3.5 ${meta.text}`} />
-                  <p className="text-base text-white/90 leading-snug italic font-medium">
-                    {a.one_line_advice}
-                  </p>
-                </div>
-
-                <p className="text-sm text-white/70 leading-relaxed mb-4">{a.overall_opinion}</p>
-
-                <div className="grid grid-cols-2 gap-3 mb-4 text-xs">
-                  <div>
-                    <div className="text-[9px] uppercase tracking-widest text-emerald-400 font-mono mb-1 flex items-center gap-1"><TrendingUp className="w-2.5 h-2.5" /> Biggest opportunity</div>
-                    <p className="text-white/70 leading-snug">{a.biggest_opportunity}</p>
-                  </div>
-                  <div>
-                    <div className="text-[9px] uppercase tracking-widest text-red-400 font-mono mb-1 flex items-center gap-1"><AlertTriangle className="w-2.5 h-2.5" /> Biggest risk</div>
-                    <p className="text-white/70 leading-snug">{a.biggest_risk}</p>
-                  </div>
-                </div>
-
-                <div className="pt-3 border-t border-white/5 flex items-center justify-between text-xs">
-                  <span className="text-white/40 font-mono">VOTES FOR</span>
-                  <div className={`px-2.5 py-1 rounded-full text-[10px] font-mono uppercase tracking-widest bg-${pathPs?.color}-500/10 border border-${pathPs?.color}-500/20 text-${pathPs?.color}-400`}>
-                    {a.preferred_path} Path
-                  </div>
-                </div>
+        {/* Consensus vote bar */}
+        <div className="gradient-border rounded-2xl p-6 mb-6 relative overflow-hidden">
+          <div className="absolute inset-0 glow-purple opacity-30 pointer-events-none" />
+          <div className="relative">
+            <div className="flex items-center justify-between mb-3">
+              <div className="text-[10px] uppercase tracking-widest text-white/40 font-mono">The board votes</div>
+              <div className="text-xs font-mono">
+                <span className="text-white/40">Majority: </span>
+                <span className={`text-${pathStyle[consensus.majority_path]?.color}-400 capitalize font-medium`}>{consensus.majority_path}</span>
               </div>
             </div>
-          )
-        })}
+            <div className="flex h-3 rounded-full overflow-hidden bg-white/5 mb-3">
+              {consensus.conservative_votes > 0 && <div className="bg-blue-400 flex items-center justify-center text-[10px] font-mono text-black/70" style={{ width: `${votePct(consensus.conservative_votes)}%` }}>{consensus.conservative_votes}</div>}
+              {consensus.balanced_votes > 0 && <div className="bg-violet-400 flex items-center justify-center text-[10px] font-mono text-black/70" style={{ width: `${votePct(consensus.balanced_votes)}%` }}>{consensus.balanced_votes}</div>}
+              {consensus.aggressive_votes > 0 && <div className="bg-amber-400 flex items-center justify-center text-[10px] font-mono text-black/70" style={{ width: `${votePct(consensus.aggressive_votes)}%` }}>{consensus.aggressive_votes}</div>}
+            </div>
+            <div className="flex items-center justify-between text-[10px] font-mono">
+              <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-blue-400" /><span className="text-white/55">Conservative · {consensus.conservative_votes}</span></div>
+              <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-violet-400" /><span className="text-white/55">Balanced · {consensus.balanced_votes}</span></div>
+              <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-amber-400" /><span className="text-white/55">Aggressive · {consensus.aggressive_votes}</span></div>
+            </div>
+            {consensus.key_disagreement && (
+              <div className="mt-5 pt-4 border-t border-white/5">
+                <div className="text-[10px] uppercase tracking-widest text-white/40 font-mono mb-1.5 flex items-center gap-1.5"><AlertTriangle className="w-2.5 h-2.5" /> Where the board disagrees</div>
+                <p className="text-sm text-white/70 leading-relaxed italic">&ldquo;{consensus.key_disagreement}&rdquo;</p>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Advisor cards (6 default + customs) */}
+        <div className="grid md:grid-cols-2 gap-4">
+          {sorted.map(a => {
+            const meta = advisorMeta[a.advisor_id]
+            return <AdvisorCard key={a.advisor_id} advisor={a} meta={meta} />
+          })}
+          {customAdvisors.map(a => {
+            const grad = pickGradient(a.name)
+            const meta = { name: a.name, role: a.role || 'Custom advisor', initials: getInitials(a.name), ...grad }
+            return <AdvisorCard key={a.id} advisor={{ ...a, advisor_id: a.id }} meta={meta} custom />
+          })}
+        </div>
+
+        {/* Ask another voice */}
+        <div className="mt-8 gradient-border rounded-2xl p-6 relative overflow-hidden">
+          <div className="absolute -top-12 -left-12 w-40 h-40 rounded-full bg-gradient-to-br from-violet-500 to-fuchsia-500 opacity-10 blur-3xl pointer-events-none" />
+          <div className="relative">
+            <div className="flex items-center gap-2 mb-2">
+              <Plus className="w-4 h-4 text-violet-400" />
+              <div className="text-[10px] uppercase tracking-widest text-violet-400 font-mono">Add another voice</div>
+            </div>
+            <h3 className="text-lg font-semibold mb-1">Want a different perspective?</h3>
+            <p className="text-sm text-white/55 mb-4">Type any name — founder, athlete, philosopher, family member — and they&apos;ll weigh in.</p>
+
+            <div className="flex flex-col sm:flex-row gap-2">
+              <div className="flex-1 gradient-border rounded-full p-1">
+                <Input value={askName} onChange={e => setAskName(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && askAdvisor()}
+                  placeholder="e.g. Sam Altman, your grandmother, a CFO..."
+                  className="bg-transparent border-0 h-10 px-4 focus-visible:ring-0 placeholder:text-white/25 text-sm" />
+              </div>
+              <Button onClick={() => askAdvisor()} disabled={!askName.trim() || asking}
+                className="h-12 px-5 rounded-full bg-white text-black hover:bg-white/90 disabled:opacity-40 font-medium">
+                {asking ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Convening...</> : <><Send className="w-3.5 h-3.5 mr-1.5" /> Ask</>}
+              </Button>
+            </div>
+
+            <div className="mt-4 flex flex-wrap gap-1.5">
+              <span className="text-[10px] uppercase tracking-widest text-white/30 font-mono mr-1 self-center">Try:</span>
+              {suggestions.map(s => (
+                <button key={s} onClick={() => askAdvisor(s)} disabled={asking}
+                  className="px-2.5 py-1 rounded-full text-[11px] border border-white/10 text-white/65 hover:bg-white/5 hover:border-white/20 transition disabled:opacity-40">
+                  {s}
+                </button>
+              ))}
+            </div>
+
+            {askError && <div className="mt-3 text-xs text-red-400">{askError}</div>}
+          </div>
+        </div>
       </div>
-    </section>
+    </DialogContent>
+  )
+}
+
+function AdvisorCard({ advisor: a, meta, custom = false }) {
+  const pathPs = pathStyle[a.preferred_path] || pathStyle.balanced
+  return (
+    <div className="gradient-border rounded-2xl p-6 transition-all relative overflow-hidden">
+      <div className={`absolute -top-12 -right-12 w-32 h-32 rounded-full bg-gradient-to-br ${meta.from} ${meta.to} opacity-10 blur-2xl pointer-events-none`} />
+      <div className="relative">
+        <div className="flex items-start gap-3 mb-4">
+          <div className={`w-12 h-12 rounded-full bg-gradient-to-br ${meta.from} ${meta.to} flex items-center justify-center text-white text-sm font-semibold flex-shrink-0 shadow-lg`}>
+            {meta.initials}
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center justify-between gap-2 flex-wrap">
+              <h3 className="font-medium leading-tight flex items-center gap-1.5">
+                {meta.name}
+                {custom && <span className="text-[9px] uppercase tracking-widest font-mono text-violet-400 px-1.5 py-0.5 rounded-full bg-violet-500/10 border border-violet-500/20">guest</span>}
+              </h3>
+              <div className={`px-2 py-0.5 rounded-full text-[10px] font-mono ${meta.bg} ${meta.text} border ${meta.border}`}>
+                {a.confidence}% sure
+              </div>
+            </div>
+            <p className={`text-xs ${meta.text} font-mono mt-0.5`}>{meta.role}</p>
+          </div>
+        </div>
+
+        <div className="relative pl-5 mb-5">
+          <Quote className={`absolute left-0 top-0 w-3.5 h-3.5 ${meta.text}`} />
+          <p className="text-base text-white/90 leading-snug italic font-medium">
+            {a.one_line_advice}
+          </p>
+        </div>
+
+        <p className="text-sm text-white/70 leading-relaxed mb-4">{a.overall_opinion}</p>
+
+        <div className="grid grid-cols-2 gap-3 mb-4 text-xs">
+          <div>
+            <div className="text-[9px] uppercase tracking-widest text-emerald-400 font-mono mb-1 flex items-center gap-1"><TrendingUp className="w-2.5 h-2.5" /> Biggest opportunity</div>
+            <p className="text-white/70 leading-snug">{a.biggest_opportunity}</p>
+          </div>
+          <div>
+            <div className="text-[9px] uppercase tracking-widest text-red-400 font-mono mb-1 flex items-center gap-1"><AlertTriangle className="w-2.5 h-2.5" /> Biggest risk</div>
+            <p className="text-white/70 leading-snug">{a.biggest_risk}</p>
+          </div>
+        </div>
+
+        <div className="pt-3 border-t border-white/5 flex items-center justify-between text-xs">
+          <span className="text-white/40 font-mono">VOTES FOR</span>
+          <div className={`px-2.5 py-1 rounded-full text-[10px] font-mono uppercase tracking-widest bg-${pathPs.color}-500/10 border border-${pathPs.color}-500/20 text-${pathPs.color}-400`}>
+            {a.preferred_path} Path
+          </div>
+        </div>
+      </div>
+    </div>
   )
 }
 
