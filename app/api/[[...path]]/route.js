@@ -361,7 +361,7 @@ Be true to the person — don't sanitize. If they would push toward aggression, 
 async function runSingleAdvisor({ name, profile, decision, scenarios }) {
   const pathsSummary = (scenarios?.paths || []).map(p => `\n[${p.type.toUpperCase()}] ${p.title}: ${p.summary}`).join('\n')
   const prompt = `ADVISOR NAME: ${name}\n\n${profileToContext(profile)}\n\nDECISION: ${decision}\n\nSCENARIOS:${pathsSummary}\n\nProvide ${name}'s perspective.`
-  return generateJSON({ system: ADVISOR_SYSTEM, prompt, schema: singleAdvisorSchema, temperature: 0.85, maxOutputTokens: 1024 })
+  return generateJSON({ system: ADVISOR_SYSTEM, prompt, schema: singleAdvisorSchema, temperature: 0.85, maxOutputTokens: 2048 })
 }
 
 // =====================================================
@@ -588,6 +588,17 @@ export async function POST(req, { params }) {
       if (!decision || decision.length < 8) return NextResponse.json({ error: 'Decision must be at least 8 characters.' }, { status: 400 })
       if (!profile) return NextResponse.json({ error: 'Profile is required.' }, { status: 400 })
 
+      // Persist a session log entry first
+      try {
+        const dbS = await getDb()
+        await dbS.collection('sessions').insertOne({
+          session_id: uuidv4(),
+          profile_id: profile.id || null,
+          decision,
+          started_at: new Date().toISOString(),
+        })
+      } catch (e) { console.error('Mongo session err:', e.message) }
+
       // Agent 2: Scenarios
       const scenarios = await runScenarios({ profile, decision })
 
@@ -614,19 +625,42 @@ export async function POST(req, { params }) {
 
     if (path === 'simulate/advisor') {
       const body = await req.json()
-      const { name, decision, profile, scenarios } = body
+      const { name, decision, profile, scenarios, simulation_id } = body
       if (!name || !name.trim()) return NextResponse.json({ error: 'Advisor name is required.' }, { status: 400 })
       if (!decision || !profile || !scenarios) return NextResponse.json({ error: 'Missing decision/profile/scenarios.' }, { status: 400 })
       const result = await runSingleAdvisor({ name: name.trim(), profile, decision, scenarios })
+      // Persist custom advisor
+      try {
+        const db = await getDb()
+        await db.collection('custom_advisors').insertOne({
+          id: uuidv4(),
+          simulation_id: simulation_id || null,
+          asked_name: name.trim(),
+          response: result,
+          createdAt: new Date().toISOString(),
+        })
+      } catch (e) { console.error('Mongo advisor err:', e.message) }
       return NextResponse.json(result)
     }
 
     if (path === 'simulate/future-chat') {
       const body = await req.json()
-      const { profile, decision, scenarios, recommendation, years_ahead, history, message } = body
+      const { profile, decision, scenarios, recommendation, years_ahead, history, message, simulation_id } = body
       if (!profile || !decision || !scenarios || !recommendation) return NextResponse.json({ error: 'Missing context for future-chat.' }, { status: 400 })
       const ya = parseInt(years_ahead) === 10 ? 10 : 5
       const result = await runFutureSelfChat({ profile, decision, scenarios, recommendation, years_ahead: ya, history: history || [], message: message || '' })
+      // Persist message exchange
+      try {
+        const db = await getDb()
+        await db.collection('future_chats').insertOne({
+          id: uuidv4(),
+          simulation_id: simulation_id || null,
+          years_ahead: ya,
+          user_message: message || null,
+          assistant_message: result.text,
+          createdAt: new Date().toISOString(),
+        })
+      } catch (e) { console.error('Mongo future-chat err:', e.message) }
       return NextResponse.json(result)
     }
 

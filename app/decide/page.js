@@ -91,15 +91,20 @@ function DecideContent() {
       <div className="fixed top-[-200px] left-1/2 -translate-x-1/2 w-[800px] h-[800px] glow-purple pointer-events-none" />
 
       <nav className="relative z-50 px-6 h-16 flex items-center justify-between max-w-7xl mx-auto">
-        <button onClick={() => router.push('/')} className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-violet-400 to-indigo-600 flex items-center justify-center shadow-lg shadow-violet-500/20">
-            <Eye className="w-4 h-4 text-white" strokeWidth={2.5} />
-          </div>
-          <span className="font-semibold tracking-tight">FutureLens</span>
-        </button>
+        <div className="flex items-center gap-3">
+          <Button variant="ghost" onClick={() => router.push('/')} className="h-9 px-3 rounded-full border border-white/10 hover:bg-white/5 text-xs">
+            <ArrowLeft className="w-3.5 h-3.5 mr-1" /> Back
+          </Button>
+          <button onClick={() => router.push('/')} className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-violet-400 to-indigo-600 flex items-center justify-center shadow-lg shadow-violet-500/20">
+              <Eye className="w-4 h-4 text-white" strokeWidth={2.5} />
+            </div>
+            <span className="font-semibold tracking-tight hidden sm:inline">FutureLens</span>
+          </button>
+        </div>
         <div className="flex items-center gap-3">
           <button onClick={() => router.push('/onboarding')} className="text-xs text-white/50 hover:text-white flex items-center gap-1.5 transition px-3 py-1.5 rounded-full border border-white/10">
-            <User className="w-3 h-3" /> {profile.age}y · {profile.location}
+            <User className="w-3 h-3" /> {profile.age}y · {profile.location || 'Edit'}
           </button>
         </div>
       </nav>

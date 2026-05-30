@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter, useParams } from 'next/navigation'
-import { Eye, Sparkles, BarChart3, Workflow, TrendingUp, TrendingDown, Calendar, Target, Shield, ChevronRight, AlertTriangle, Check, Loader2, Briefcase, Heart, Activity, Smile, Clock, MapPin, Quote, Users2, Gavel, Brain, X, Plus, Send, FileText, Scale, Swords, ArrowRight, Award } from 'lucide-react'
+import { Eye, Sparkles, BarChart3, Workflow, TrendingUp, TrendingDown, Calendar, Target, Shield, ChevronRight, AlertTriangle, Check, Loader2, Briefcase, Heart, Activity, Smile, Clock, MapPin, Quote, Users2, Gavel, Brain, X, Plus, Send, FileText, Scale, Swords, ArrowRight, ArrowLeft, Award } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogTrigger } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
@@ -107,12 +107,17 @@ export default function ResultsPage() {
       <div className="fixed inset-0 bg-radial-fade pointer-events-none" />
 
       <nav className="relative z-50 px-6 h-16 flex items-center justify-between max-w-7xl mx-auto border-b border-white/5">
-        <button onClick={() => router.push('/')} className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-violet-400 to-indigo-600 flex items-center justify-center shadow-lg shadow-violet-500/20">
-            <Eye className="w-4 h-4 text-white" strokeWidth={2.5} />
-          </div>
-          <span className="font-semibold tracking-tight">FutureLens</span>
-        </button>
+        <div className="flex items-center gap-3">
+          <Button variant="ghost" onClick={() => router.push('/decide')} className="h-9 px-3 rounded-full border border-white/10 hover:bg-white/5 text-xs">
+            <ArrowLeft className="w-3.5 h-3.5 mr-1" /> Back
+          </Button>
+          <button onClick={() => router.push('/')} className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-violet-400 to-indigo-600 flex items-center justify-center shadow-lg shadow-violet-500/20">
+              <Eye className="w-4 h-4 text-white" strokeWidth={2.5} />
+            </div>
+            <span className="font-semibold tracking-tight hidden sm:inline">FutureLens</span>
+          </button>
+        </div>
         <div className="flex items-center gap-2">
           <BoardButton data={data} />
           <Button onClick={() => router.push('/decide')} variant="ghost" className="text-sm h-9 rounded-full border border-white/10 hover:bg-white/5">
@@ -625,6 +630,7 @@ function BoardDialogContent({ data }) {
           decision: data.decision,
           profile: data.profile_snapshot,
           scenarios: data.scenarios,
+          simulation_id: data.id,
         }),
       })
       const j = await res.json()
@@ -1123,6 +1129,7 @@ function FutureSelfSection({ data }) {
           years_ahead: yearsAhead,
           history,
           message,
+          simulation_id: data.id,
         }),
       })
       const j = await res.json()
