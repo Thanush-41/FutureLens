@@ -583,44 +583,86 @@ export async function POST(req, { params }) {
     }
 
     if (path === 'simulate') {
+      // Legacy single-call endpoint kept for backwards compatibility.
+      // For production-safe usage prefer simulate/init + simulate/analyze + simulate/consensus.
       const body = await req.json()
       const { decision, profile } = body
       if (!decision || decision.length < 8) return NextResponse.json({ error: 'Decision must be at least 8 characters.' }, { status: 400 })
       if (!profile) return NextResponse.json({ error: 'Profile is required.' }, { status: 400 })
 
-      // Persist a session log entry first
       try {
         const dbS = await getDb()
-        await dbS.collection('sessions').insertOne({
-          session_id: uuidv4(),
-          profile_id: profile.id || null,
-          decision,
-          started_at: new Date().toISOString(),
-        })
+        await dbS.collection('sessions').insertOne({ session_id: uuidv4(), profile_id: profile.id || null, decision, started_at: new Date().toISOString() })
       } catch (e) { console.error('Mongo session err:', e.message) }
 
-      // Agent 2: Scenarios
       const scenarios = await runScenarios({ profile, decision })
-
-      // Agents 3, 4, 5, 6 in PARALLEL
       const [financial, career, lifestyle, board] = await Promise.all([
         runFinancial({ profile, decision, scenarios }).catch(e => ({ error: e.message })),
         runCareer({ profile, decision, scenarios }).catch(e => ({ error: e.message })),
         runLifestyle({ profile, decision, scenarios }).catch(e => ({ error: e.message })),
         runBoard({ profile, decision, scenarios }).catch(e => ({ error: e.message })),
       ])
-
-      // Agent 7: Consensus & Dissent — synthesizes all of the above
       const consensus = await runConsensus({ profile, decision, scenarios, financial, career, lifestyle, board }).catch(e => ({ error: e.message }))
 
       const id = uuidv4()
-      const doc = {
-        id, decision, profile_snapshot: profile,
-        scenarios, financial, career, lifestyle, board, consensus,
-        createdAt: new Date().toISOString(),
-      }
+      const doc = { id, decision, profile_snapshot: profile, scenarios, financial, career, lifestyle, board, consensus, createdAt: new Date().toISOString() }
       try { const db = await getDb(); await db.collection('simulations').insertOne({ ...doc }) } catch (e) { console.error('Mongo sim err:', e.message) }
       return NextResponse.json(doc)
+    }
+
+    // === SPLIT SIMULATE ENDPOINTS (each completes well under proxy timeout) ===
+    if (path === 'simulate/init') {
+      const body = await req.json()
+      const { decision, profile } = body
+      if (!decision || decision.length < 8) return NextResponse.json({ error: 'Decision must be at least 8 characters.' }, { status: 400 })
+      if (!profile) return NextResponse.json({ error: 'Profile is required.' }, { status: 400 })
+
+      const id = uuidv4()
+      try {
+        const dbS = await getDb()
+        await dbS.collection('sessions').insertOne({ session_id: id, profile_id: profile.id || null, decision, started_at: new Date().toISOString() })
+      } catch (e) { console.error('Mongo session err:', e.message) }
+
+      const scenarios = await runScenarios({ profile, decision })
+      const doc = { id, decision, profile_snapshot: profile, scenarios, createdAt: new Date().toISOString() }
+      try { const db = await getDb(); await db.collection('simulations').insertOne({ ...doc }) } catch (e) { console.error('Mongo init err:', e.message) }
+      return NextResponse.json({ id, scenarios, decision, profile_snapshot: profile })
+    }
+
+    if (path === 'simulate/analyze') {
+      const body = await req.json()
+      const { id } = body
+      if (!id) return NextResponse.json({ error: 'Missing simulation id' }, { status: 400 })
+      const db = await getDb()
+      const doc = await db.collection('simulations').findOne({ id })
+      if (!doc) return NextResponse.json({ error: 'Simulation not found' }, { status: 404 })
+      const { decision, profile_snapshot: profile, scenarios } = doc
+
+      const [financial, career, lifestyle, board] = await Promise.all([
+        runFinancial({ profile, decision, scenarios }).catch(e => ({ error: e.message })),
+        runCareer({ profile, decision, scenarios }).catch(e => ({ error: e.message })),
+        runLifestyle({ profile, decision, scenarios }).catch(e => ({ error: e.message })),
+        runBoard({ profile, decision, scenarios }).catch(e => ({ error: e.message })),
+      ])
+      try { await db.collection('simulations').updateOne({ id }, { $set: { financial, career, lifestyle, board, analyzedAt: new Date().toISOString() } }) } catch (e) { console.error('Mongo analyze update err:', e.message) }
+      return NextResponse.json({ financial, career, lifestyle, board })
+    }
+
+    if (path === 'simulate/consensus') {
+      const body = await req.json()
+      const { id } = body
+      if (!id) return NextResponse.json({ error: 'Missing simulation id' }, { status: 400 })
+      const db = await getDb()
+      const doc = await db.collection('simulations').findOne({ id })
+      if (!doc) return NextResponse.json({ error: 'Simulation not found' }, { status: 404 })
+      const { decision, profile_snapshot: profile, scenarios, financial, career, lifestyle, board } = doc
+      if (!financial || !career || !lifestyle || !board) return NextResponse.json({ error: 'Run /simulate/analyze first' }, { status: 400 })
+
+      const consensus = await runConsensus({ profile, decision, scenarios, financial, career, lifestyle, board }).catch(e => ({ error: e.message }))
+      try { await db.collection('simulations').updateOne({ id }, { $set: { consensus, completedAt: new Date().toISOString() } }) } catch (e) { console.error('Mongo consensus update err:', e.message) }
+      const final = await db.collection('simulations').findOne({ id })
+      const { _id, ...returnable } = final
+      return NextResponse.json(returnable)
     }
 
     if (path === 'simulate/advisor') {

@@ -52,11 +52,7 @@ function DecideContent() {
     { agent: 'FutureLens', text: 'Finalizing your decision dossier...', icon: Sparkles, color: 'violet' },
   ]
 
-  useEffect(() => {
-    if (!loading) return
-    const t = setInterval(() => setStage(s => Math.min(s + 1, stages.length - 1)), 8500)
-    return () => clearInterval(t)
-  }, [loading])
+  // Stage is driven by actual API completion (see handleSubmit), no auto-progress.
 
   const charCount = decision.length
   const canSubmit = charCount >= 15 && !loading
@@ -67,15 +63,39 @@ function DecideContent() {
     setError(null)
     setStage(0)
     try {
-      const res = await fetch('/api/simulate', {
+      // Phase 1: scenarios (~15s)
+      setStage(1)
+      const r1 = await fetch('/api/simulate/init', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ decision, profile }),
       })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error || 'Simulation failed')
-      sessionStorage.setItem('futurelens_result_' + data.id, JSON.stringify(data))
-      router.push('/results/' + data.id)
+      const d1 = await r1.json()
+      if (!r1.ok) throw new Error(d1.error || 'Scenario generation failed')
+      const simId = d1.id
+
+      // Phase 2: financial + career + lifestyle + board in parallel (~25s)
+      setStage(2)
+      const r2 = await fetch('/api/simulate/analyze', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: simId }),
+      })
+      const d2 = await r2.json()
+      if (!r2.ok) throw new Error(d2.error || 'Analysis failed')
+
+      // Phase 3: consensus + final doc (~10s)
+      setStage(5)
+      const r3 = await fetch('/api/simulate/consensus', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: simId }),
+      })
+      const final = await r3.json()
+      if (!r3.ok) throw new Error(final.error || 'Consensus failed')
+
+      sessionStorage.setItem('futurelens_result_' + final.id, JSON.stringify(final))
+      router.push('/results/' + final.id)
     } catch (e) {
       setError(e.message)
       setLoading(false)
