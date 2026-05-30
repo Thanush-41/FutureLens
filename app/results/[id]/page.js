@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter, useParams } from 'next/navigation'
-import { Eye, Sparkles, BarChart3, Workflow, TrendingUp, TrendingDown, Calendar, Target, Shield, ChevronRight, AlertTriangle, Check, Loader2 } from 'lucide-react'
+import { Eye, Sparkles, BarChart3, Workflow, TrendingUp, TrendingDown, Calendar, Target, Shield, ChevronRight, AlertTriangle, Check, Loader2, Briefcase, Heart, Activity, Smile, Clock, MapPin } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
 const pathStyle = {
@@ -319,7 +319,149 @@ export default function ResultsPage() {
           </div>
         </section>
 
-        {/* CTA */}
+        {/* Career Impact (Agent 4) */}
+        {data.career?.paths?.length > 0 && (
+          <section className="mt-14 animate-fade-up delay-400">
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <div className="text-xs uppercase tracking-widest text-violet-400 mb-1 font-mono flex items-center gap-2">
+                  <Briefcase className="w-3 h-3" /> Agent 4 · Career Impact
+                </div>
+                <h2 className="text-2xl font-semibold tracking-tight">Career outcomes, side by side</h2>
+              </div>
+            </div>
+
+            {/* Comparison bars across paths */}
+            <div className="gradient-border rounded-2xl p-7">
+              <CareerComparison careerPaths={data.career.paths} />
+            </div>
+
+            {/* Per-scenario detail */}
+            <div className="mt-6 grid md:grid-cols-3 gap-4">
+              {data.career.paths.map(c => {
+                const ps = pathStyle[c.path_type]
+                return (
+                  <div key={c.path_type} className="gradient-border rounded-2xl p-5">
+                    <div className="flex items-center justify-between mb-3">
+                      <span className={`text-[10px] font-mono uppercase tracking-widest text-${ps.color}-400`}>{ps.label}</span>
+                      <span className="text-[10px] font-mono text-white/40">CAREER</span>
+                    </div>
+                    <div className="flex items-baseline gap-2 mb-3">
+                      <span className="text-3xl font-semibold tracking-tight text-gradient">{c.career_score}</span>
+                      <span className="text-white/30 text-sm">/100</span>
+                    </div>
+                    <p className="text-xs text-white/70 leading-relaxed mb-4">{c.explanation}</p>
+                    <div className="space-y-3 text-xs">
+                      <div>
+                        <div className="text-[10px] uppercase tracking-widest text-emerald-400 font-mono mb-1">Skills developed</div>
+                        <div className="flex flex-wrap gap-1">
+                          {c.skill_development?.map((s,i) => <span key={i} className="px-2 py-0.5 rounded-full bg-white/5 border border-white/10 text-white/65 text-[10px]">{s}</span>)}
+                        </div>
+                      </div>
+                      <div>
+                        <div className="text-[10px] uppercase tracking-widest text-blue-400 font-mono mb-1">Network</div>
+                        <ul className="space-y-1">
+                          {c.network_opportunities?.map((n,i) => <li key={i} className="text-white/65 flex gap-1.5"><span className="text-blue-400">·</span>{n}</li>)}
+                        </ul>
+                      </div>
+                      <div className="pt-2 border-t border-white/5">
+                        <div className="text-[10px] uppercase tracking-widest text-white/40 font-mono mb-1">Industry exposure</div>
+                        <div className="text-white/70">{c.industry_exposure}</div>
+                      </div>
+                      <div>
+                        <div className="text-[10px] uppercase tracking-widest text-white/40 font-mono mb-1">Future employability</div>
+                        <div className="text-white/70">{c.future_employability}</div>
+                      </div>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </section>
+        )}
+
+        {/* Lifestyle Impact (Agent 5) */}
+        {data.lifestyle?.paths?.length > 0 && (
+          <section className="mt-14 animate-fade-up delay-500">
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <div className="text-xs uppercase tracking-widest text-violet-400 mb-1 font-mono flex items-center gap-2">
+                  <Heart className="w-3 h-3" /> Agent 5 · Lifestyle Impact
+                </div>
+                <h2 className="text-2xl font-semibold tracking-tight">How your life will feel</h2>
+              </div>
+            </div>
+
+            {/* Lifestyle dashboard cards */}
+            <div className="grid md:grid-cols-3 gap-4">
+              {data.lifestyle.paths.map(l => {
+                const ps = pathStyle[l.path_type]
+                const dims = [
+                  { key: 'work_life_balance', label: 'Work-Life Balance', icon: Activity, invert: false },
+                  { key: 'stress_level',      label: 'Stress',             icon: AlertTriangle, invert: true },
+                  { key: 'family_impact',     label: 'Family Impact',      icon: Heart, invert: false },
+                  { key: 'time_freedom',      label: 'Time Freedom',       icon: Clock, invert: false },
+                  { key: 'location_advantage',label: 'Location',           icon: MapPin, invert: false },
+                  { key: 'happiness_index',   label: 'Happiness',          icon: Smile, invert: false },
+                ]
+                return (
+                  <div key={l.path_type} className="gradient-border rounded-2xl p-5">
+                    <div className="flex items-center justify-between mb-4">
+                      <span className={`text-[10px] font-mono uppercase tracking-widest text-${ps.color}-400`}>{ps.label}</span>
+                      <span className="text-[10px] font-mono text-white/40">LIFESTYLE</span>
+                    </div>
+                    {/* Big lifestyle score */}
+                    <div className="flex items-baseline gap-2 mb-1">
+                      <span className="text-4xl font-semibold tracking-tight text-gradient">{l.lifestyle_score}</span>
+                      <span className="text-white/30 text-sm">/100</span>
+                    </div>
+                    <div className="w-full h-1.5 bg-white/5 rounded-full overflow-hidden mt-2 mb-5">
+                      <div className={`h-full bg-${ps.color}-400 rounded-full`} style={{ width: `${l.lifestyle_score}%` }} />
+                    </div>
+
+                    {/* 6 dim bars */}
+                    <div className="space-y-2.5 mb-4">
+                      {dims.map(d => {
+                        const raw = l[d.key] || 0
+                        const display = d.invert ? raw : raw
+                        const colorBar = d.invert ? (raw > 65 ? 'bg-red-400' : raw > 40 ? 'bg-amber-400' : 'bg-emerald-400')
+                                                  : (raw < 40 ? 'bg-red-400' : raw < 65 ? 'bg-amber-400' : 'bg-emerald-400')
+                        const Icon = d.icon
+                        return (
+                          <div key={d.key}>
+                            <div className="flex items-center justify-between text-[10px] mb-1">
+                              <div className="flex items-center gap-1.5 text-white/55">
+                                <Icon className="w-2.5 h-2.5" />
+                                <span>{d.label}{d.invert && <span className="text-white/30"> (lower=better)</span>}</span>
+                              </div>
+                              <span className="font-mono text-white/70">{display}</span>
+                            </div>
+                            <div className="h-1 bg-white/5 rounded-full overflow-hidden">
+                              <div className={`h-full ${colorBar} rounded-full transition-all`} style={{ width: `${raw}%` }} />
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+
+                    <p className="text-xs text-white/70 leading-relaxed mb-3">{l.explanation}</p>
+
+                    <div className="pt-3 border-t border-white/5">
+                      <div className="text-[10px] uppercase tracking-widest text-emerald-400 font-mono mb-1">Benefits</div>
+                      <ul className="space-y-1 mb-3">
+                        {l.benefits?.slice(0,3).map((b,i) => <li key={i} className="text-xs text-white/65 flex gap-1.5"><span className="text-emerald-400 mt-0.5">+</span>{b}</li>)}
+                      </ul>
+                      <div className="text-[10px] uppercase tracking-widest text-red-400 font-mono mb-1">Risk factors</div>
+                      <ul className="space-y-1">
+                        {l.risk_factors?.slice(0,3).map((b,i) => <li key={i} className="text-xs text-white/65 flex gap-1.5"><span className="text-red-400 mt-0.5">!</span>{b}</li>)}
+                      </ul>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </section>
+        )}
         <div className="mt-14 gradient-border rounded-2xl p-8 text-center animate-fade-up delay-400 relative overflow-hidden">
           <div className="absolute inset-0 glow-purple opacity-40" />
           <div className="relative">
@@ -331,6 +473,37 @@ export default function ResultsPage() {
           </div>
         </div>
       </main>
+    </div>
+  )
+}
+
+function CareerComparison({ careerPaths }) {
+  const dims = [
+    { key: 'career_score', label: 'Career outcome' },
+    { key: 'growth_score', label: 'Growth potential' },
+    { key: 'opportunity_score', label: 'Opportunity quality' },
+  ]
+  const colorMap = { conservative: 'bg-blue-400', balanced: 'bg-violet-400', aggressive: 'bg-amber-400' }
+  const ordered = ['conservative','balanced','aggressive'].map(t => careerPaths.find(c => c.path_type === t)).filter(Boolean)
+
+  return (
+    <div className="space-y-6">
+      {dims.map(d => (
+        <div key={d.key}>
+          <div className="text-[10px] uppercase tracking-widest text-violet-400 font-mono mb-3">{d.label}</div>
+          <div className="space-y-2">
+            {ordered.map(c => (
+              <div key={c.path_type} className="flex items-center gap-3">
+                <div className="w-24 text-xs text-white/60 capitalize">{c.path_type}</div>
+                <div className="flex-1 h-2 bg-white/5 rounded-full overflow-hidden">
+                  <div className={`h-full ${colorMap[c.path_type]} rounded-full transition-all`} style={{ width: `${c[d.key] || 0}%` }} />
+                </div>
+                <div className="w-10 text-right text-sm font-mono text-white/85">{c[d.key]}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      ))}
     </div>
   )
 }
