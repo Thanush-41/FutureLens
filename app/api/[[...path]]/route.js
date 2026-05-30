@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
-import { GoogleGenAI, Type } from '@google/genai'
 import { MongoClient } from 'mongodb'
 import { v4 as uuidv4 } from 'uuid'
+import { generateJSON } from '@/lib/gemini'
 
 // --- DB ---
 let cachedClient = null
@@ -13,146 +13,258 @@ async function getDb() {
   return client.db(process.env.DB_NAME || 'futurelens')
 }
 
-// --- Gemini ---
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY })
-const MODEL = 'gemini-2.5-flash'
+// =====================================================
+// AGENT 1: User Context Agent (structuring + validation)
+// =====================================================
+// Schema validation only; takes raw form data and returns structured profile.
+function buildProfile(input) {
+  const p = {
+    id: input.id || uuidv4(),
+    age: parseInt(input.age) || null,
+    occupation: (input.occupation || '').trim(),
+    location: (input.location || '').trim(),
+    annual_income: parseInt(input.annual_income) || 0,
+    savings: parseInt(input.savings) || 0,
+    currency: input.currency || 'USD',
+    education: input.education || '',
+    relationship_status: input.relationship_status || '',
+    career_goals: (input.career_goals || '').trim(),
+    personal_goals: (input.personal_goals || '').trim(),
+    risk_tolerance: input.risk_tolerance || 'medium', // low | medium | high
+    createdAt: new Date().toISOString(),
+  }
+  return p
+}
 
-// JSON Schema for FutureLens structured output
-const responseSchema = {
-  type: Type.OBJECT,
+function profileToContext(profile) {
+  if (!profile) return ''
+  return `USER PROFILE:
+- Age: ${profile.age || 'unspecified'}
+- Occupation: ${profile.occupation || 'unspecified'}
+- Location: ${profile.location || 'unspecified'}
+- Annual income: ${profile.currency || 'USD'} ${profile.annual_income?.toLocaleString() || 'unspecified'}
+- Savings: ${profile.currency || 'USD'} ${profile.savings?.toLocaleString() || 'unspecified'}
+- Education: ${profile.education || 'unspecified'}
+- Relationship: ${profile.relationship_status || 'unspecified'}
+- Career goals: ${profile.career_goals || 'unspecified'}
+- Personal goals: ${profile.personal_goals || 'unspecified'}
+- Risk tolerance: ${profile.risk_tolerance || 'medium'}`
+}
+
+// =====================================================
+// AGENT 2: Scenario Generator (Conservative / Balanced / Aggressive)
+// =====================================================
+const scenarioSchema = {
+  type: 'object',
   properties: {
-    decision: {
-      type: Type.OBJECT,
-      properties: {
-        text: { type: Type.STRING },
-        horizon_years: { type: Type.INTEGER },
-      },
-      required: ['text', 'horizon_years'],
-    },
-    scenarios: {
-      type: Type.ARRAY,
-      minItems: 5,
-      maxItems: 5,
+    decision_question: { type: 'string' },
+    paths: {
+      type: 'array',
       items: {
-        type: Type.OBJECT,
+        type: 'object',
         properties: {
-          id: { type: Type.STRING },
-          title: { type: Type.STRING, description: 'Short evocative title for this future scenario, like a headline' },
-          year: { type: Type.INTEGER, description: 'The year within the horizon where this scenario plays out' },
-          likelihood: { type: Type.STRING, enum: ['low', 'medium', 'high'] },
-          description: { type: Type.STRING, description: '2-3 sentence vivid narrative of how this scenario unfolds' },
-          key_drivers: { type: Type.ARRAY, items: { type: Type.STRING }, description: '3-5 key factors that shape this scenario' },
-          upside: { type: Type.STRING, description: 'One sentence on the best part of this scenario' },
-          downside: { type: Type.STRING, description: 'One sentence on the worst part of this scenario' },
+          type: { type: 'string', enum: ['conservative', 'balanced', 'aggressive'] },
+          title: { type: 'string', description: 'Short evocative headline title (5-8 words)' },
+          summary: { type: 'string', description: 'One-sentence summary of this path' },
+          narrative: { type: 'string', description: '3-5 sentences vividly describing how the future unfolds on this path' },
+          key_assumptions: { type: 'array', items: { type: 'string' } },
+          benefits: { type: 'array', items: { type: 'string' } },
+          risks: { type: 'array', items: { type: 'string' } },
+          confidence: { type: 'number', description: '0 to 1 confidence in this path playing out' },
+          timeline: {
+            type: 'array',
+            description: '4-6 milestones with year offset from today',
+            items: {
+              type: 'object',
+              properties: {
+                year: { type: 'integer', description: 'Years from now (1-N)' },
+                milestone: { type: 'string' },
+              },
+              required: ['year', 'milestone'],
+            },
+          },
         },
-        required: ['id', 'title', 'year', 'likelihood', 'description', 'key_drivers', 'upside', 'downside'],
+        required: ['type', 'title', 'summary', 'narrative', 'key_assumptions', 'benefits', 'risks', 'confidence', 'timeline'],
       },
-    },
-    advisors: {
-      type: Type.ARRAY,
-      minItems: 4,
-      maxItems: 4,
-      items: {
-        type: Type.OBJECT,
-        properties: {
-          role: { type: Type.STRING, enum: ['financial_advisor', 'life_coach', 'risk_analyst', 'visionary'] },
-          summary: { type: Type.STRING, description: '2-3 sentence summary of this advisor\'s point of view' },
-          pros: { type: Type.ARRAY, items: { type: Type.STRING }, description: '3 specific pros from this advisor\'s angle' },
-          cons: { type: Type.ARRAY, items: { type: Type.STRING }, description: '3 specific cons from this advisor\'s angle' },
-          recommendation: { type: Type.STRING, enum: ['proceed', 'proceed_with_conditions', 'delay', 'do_not_proceed'] },
-          confidence: { type: Type.NUMBER, description: 'Confidence score 0 to 1' },
-        },
-        required: ['role', 'summary', 'pros', 'cons', 'recommendation', 'confidence'],
-      },
-    },
-    overall_recommendation: {
-      type: Type.OBJECT,
-      properties: {
-        final_decision: { type: Type.STRING, enum: ['proceed', 'adjust', 'do_not_proceed', 'uncertain'] },
-        headline: { type: Type.STRING, description: 'A single punchy sentence summarizing the final verdict (12-20 words max)' },
-        rationale: { type: Type.STRING, description: '3-4 sentence narrative synthesizing the board\'s view' },
-        top_pros: { type: Type.ARRAY, items: { type: Type.STRING }, description: '4 most important pros across all advisors' },
-        top_cons: { type: Type.ARRAY, items: { type: Type.STRING }, description: '4 most important cons across all advisors' },
-      },
-      required: ['final_decision', 'headline', 'rationale', 'top_pros', 'top_cons'],
     },
   },
-  required: ['decision', 'scenarios', 'advisors', 'overall_recommendation'],
+  required: ['decision_question', 'paths'],
 }
 
-const SYSTEM = `You are FutureLens, a world-class AI decision-simulation engine, modeled after the strategic clarity of Linear, Stripe, and Perplexity.
+const SCENARIO_SYSTEM = `You are the Scenario Generator Agent for FutureLens.
 
-When given a major life decision and a time horizon, you do TWO things:
+Given a user profile and a decision question, produce EXACTLY 3 distinct future paths over a 5-year horizon:
+1. CONSERVATIVE — the cautious, safe, status-quo-preserving path
+2. BALANCED — the pragmatic, moderate-risk middle path
+3. AGGRESSIVE — the bold, ambitious, high-risk-high-reward path
 
-1) SCENARIOS — Imagine exactly 5 plausible distinct future scenarios over the horizon. Each must be vivid, specific, and grounded in the user's context. Mix likelihoods (some high, some medium, some low). Years should span the horizon (don't put them all at the end). Avoid clichés.
+Each path must be:
+- Grounded in the user's actual profile (age, income, location, goals, risk tolerance)
+- Specific and vivid (use real numbers, places, role titles when possible)
+- Internally consistent
+- Different from the other two paths in meaningful ways
 
-2) ADVISOR BOARD — Have exactly 4 advisor personas analyze the decision:
-   - financial_advisor: focuses on money, income, wealth, cash flow, ROI
-   - life_coach: focuses on meaning, fulfillment, relationships, growth
-   - risk_analyst: focuses on threats, downside, volatility, what could go wrong
-   - visionary: focuses on bold upside, possibilities, what could go incredibly right
+Use short evocative titles, like newspaper headlines.
+Timeline milestones should be concrete (e.g., 'Promoted to Senior PM at ₹45 LPA', 'Bought 2BHK in Whitefield').
+Return ONLY the JSON conforming to schema. No prose outside.`
 
-Each advisor MUST have a distinct perspective. Their pros/cons should be concrete and non-overlapping. Confidence scores should be calibrated (0.5 = unsure, 0.8 = strong opinion).
+async function runScenarios({ profile, decision }) {
+  const prompt = `${profileToContext(profile)}
 
-3) FINAL VERDICT — Synthesize a single overall recommendation (proceed / adjust / do_not_proceed / uncertain) with a punchy headline and clear rationale.
+DECISION QUESTION: ${decision}
 
-TONE: Premium, precise, slightly bold. Like a senior strategist briefing a CEO. No fluff. No disclaimers. No 'as an AI' language.`
-
-async function runSimulation({ decision, context, horizonYears }) {
-  const userPrompt = `DECISION: ${decision}
-
-${context ? `CONTEXT: ${context}\n\n` : ''}TIME HORIZON: ${horizonYears} years
-
-Produce the FutureLens structured analysis now.`
-
-  const response = await ai.models.generateContent({
-    model: MODEL,
-    contents: [{ role: 'user', parts: [{ text: userPrompt }] }],
-    config: {
-      systemInstruction: SYSTEM,
-      responseMimeType: 'application/json',
-      responseSchema,
-      temperature: 0.75,
-      maxOutputTokens: 8192,
-    },
+Generate the 3 future paths.`
+  return generateJSON({
+    system: SCENARIO_SYSTEM,
+    prompt,
+    schema: scenarioSchema,
+    temperature: 0.85,
+    maxOutputTokens: 6144,
   })
-
-  const text = response.text
-  if (!text) throw new Error('Empty response from Gemini')
-  return JSON.parse(text)
 }
 
-// --- Routes ---
+// =====================================================
+// AGENT 3: Financial Impact Agent
+// =====================================================
+const financialSchema = {
+  type: 'object',
+  properties: {
+    currency: { type: 'string' },
+    horizon_years: { type: 'integer' },
+    paths: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          path_type: { type: 'string', enum: ['conservative', 'balanced', 'aggressive'] },
+          financial_score: { type: 'integer', description: '0-100 overall financial health score for this path' },
+          income_growth_pct: { type: 'number', description: 'Estimated total income growth percent over horizon (e.g. 45 means +45%)' },
+          ending_annual_income: { type: 'integer', description: 'Estimated annual income at end of horizon' },
+          ending_savings: { type: 'integer', description: 'Estimated savings/net liquid wealth at end of horizon' },
+          cost_of_living_impact: { type: 'string', description: 'Short description of cost of living change e.g. +20% due to relocation' },
+          wealth_accumulation: { type: 'integer', description: 'Estimated total net worth at end of horizon' },
+          financial_risk_score: { type: 'integer', description: '0-100 where higher = more risk' },
+          opportunities: { type: 'array', items: { type: 'string' } },
+          risks: { type: 'array', items: { type: 'string' } },
+          summary: { type: 'string', description: '2-3 sentence financial summary for this path' },
+          yearly_projection: {
+            type: 'array',
+            description: 'Year-by-year projection of income and savings',
+            items: {
+              type: 'object',
+              properties: {
+                year: { type: 'integer' },
+                income: { type: 'integer' },
+                savings: { type: 'integer' },
+                net_worth: { type: 'integer' },
+              },
+              required: ['year', 'income', 'savings', 'net_worth'],
+            },
+          },
+        },
+        required: ['path_type', 'financial_score', 'income_growth_pct', 'ending_annual_income', 'ending_savings', 'cost_of_living_impact', 'wealth_accumulation', 'financial_risk_score', 'opportunities', 'risks', 'summary', 'yearly_projection'],
+      },
+    },
+  },
+  required: ['currency', 'horizon_years', 'paths'],
+}
+
+const FINANCIAL_SYSTEM = `You are the Financial Impact Agent for FutureLens.
+
+Given a user profile and 3 future scenario paths (conservative, balanced, aggressive) for a decision, estimate the financial consequences of each path over 5 years.
+
+Ground your numbers in the user's CURRENT income, savings, location, and the realistic delta of each path. Use the user's stated currency. Be specific.
+
+For each path:
+- income_growth_pct: total percent change over horizon
+- ending_annual_income, ending_savings, wealth_accumulation: integers in user's currency
+- financial_score (0-100): combines wealth growth, stability, opportunity
+- financial_risk_score (0-100): higher = riskier
+- yearly_projection: 5 entries (year 1..5) with realistic income, savings, net_worth numbers
+- opportunities and risks: 2-4 each, concrete and specific
+
+Return ONLY valid JSON conforming to the schema.`
+
+async function runFinancial({ profile, decision, scenarios }) {
+  const pathsSummary = scenarios.paths.map(p => `\n[${p.type.toUpperCase()}] ${p.title}\nSummary: ${p.summary}\nKey assumptions: ${(p.key_assumptions || []).join('; ')}`).join('\n')
+
+  const prompt = `${profileToContext(profile)}
+
+DECISION QUESTION: ${decision}
+
+SCENARIO PATHS TO ANALYZE FINANCIALLY:${pathsSummary}
+
+Estimate the 5-year financial impact for each path.`
+  return generateJSON({
+    system: FINANCIAL_SYSTEM,
+    prompt,
+    schema: financialSchema,
+    temperature: 0.5,
+    maxOutputTokens: 8192,
+  })
+}
+
+// =====================================================
+// ROUTES
+// =====================================================
 export async function POST(req, { params }) {
-  const path = (params?.path || []).join('/')
+  const segs = params?.path || []
+  const path = segs.join('/')
   try {
+    if (path === 'profile') {
+      const body = await req.json()
+      const profile = buildProfile(body)
+      try {
+        const db = await getDb()
+        await db.collection('profiles').insertOne({ ...profile })
+      } catch (e) { console.error('Mongo profile insert error:', e.message) }
+      return NextResponse.json(profile)
+    }
+
     if (path === 'simulate') {
       const body = await req.json()
-      const { decision, context, horizonYears } = body
-      if (!decision || decision.length < 10) {
-        return NextResponse.json({ error: 'Decision must be at least 10 characters.' }, { status: 400 })
+      const { decision, profile } = body
+      if (!decision || decision.length < 8) {
+        return NextResponse.json({ error: 'Decision must be at least 8 characters.' }, { status: 400 })
       }
-      const horizon = Math.max(1, Math.min(15, parseInt(horizonYears) || 5))
+      if (!profile) {
+        return NextResponse.json({ error: 'Profile is required. Please complete onboarding.' }, { status: 400 })
+      }
 
-      const result = await runSimulation({ decision, context: context || '', horizonYears: horizon })
+      // Agent 2: Generate scenarios
+      const scenarios = await runScenarios({ profile, decision })
+      // Agent 3: Financial analysis
+      const financial = await runFinancial({ profile, decision, scenarios })
+
       const id = uuidv4()
       const doc = {
         id,
-        decision_input: decision,
-        context_input: context || '',
-        horizon_years: horizon,
-        model: MODEL,
-        ...result,
+        decision,
+        profile_snapshot: profile,
+        scenarios,
+        financial,
         createdAt: new Date().toISOString(),
       }
       try {
         const db = await getDb()
-        await db.collection('simulations').insertOne(doc)
-      } catch (e) {
-        console.error('Mongo insert failed (continuing):', e.message)
-      }
-      const { _id, ...returnable } = doc
-      return NextResponse.json(returnable)
+        await db.collection('simulations').insertOne({ ...doc })
+      } catch (e) { console.error('Mongo sim insert error:', e.message) }
+
+      return NextResponse.json(doc)
+    }
+
+    if (path === 'simulate/scenarios') {
+      const body = await req.json()
+      const { decision, profile } = body
+      const scenarios = await runScenarios({ profile, decision })
+      return NextResponse.json(scenarios)
+    }
+
+    if (path === 'simulate/financial') {
+      const body = await req.json()
+      const { decision, profile, scenarios } = body
+      const financial = await runFinancial({ profile, decision, scenarios })
+      return NextResponse.json(financial)
     }
 
     return NextResponse.json({ error: 'Not found' }, { status: 404 })
@@ -174,7 +286,7 @@ export async function GET(req, { params }) {
       return NextResponse.json(returnable)
     }
     if (segs[0] === 'health') {
-      return NextResponse.json({ status: 'ok', model: MODEL })
+      return NextResponse.json({ status: 'ok', model: process.env.GEMINI_MODEL || 'gemini-flash-latest', has_key: !!process.env.GEMINI_API_KEY })
     }
     return NextResponse.json({ error: 'Not found' }, { status: 404 })
   } catch (e) {
