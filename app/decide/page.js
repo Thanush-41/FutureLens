@@ -48,7 +48,8 @@ function DecideContent() {
     { agent: 'Career Agent', text: 'Evaluating career growth & employability...', icon: Workflow, color: 'blue' },
     { agent: 'Lifestyle Agent', text: 'Analyzing work-life, stress & happiness...', icon: Sparkles, color: 'amber' },
     { agent: 'Board of Directors', text: 'Convening Musk, Buffett, Jobs, Naval, Huberman & Mukund...', icon: Sparkles, color: 'violet' },
-    { agent: 'FutureLens', text: 'Synthesizing your decision dossier...', icon: Sparkles, color: 'violet' },
+    { agent: 'Consensus Agent', text: 'Synthesizing executive recommendation & dissent analysis...', icon: Sparkles, color: 'violet' },
+    { agent: 'FutureLens', text: 'Finalizing your decision dossier...', icon: Sparkles, color: 'violet' },
   ]
 
   useEffect(() => {

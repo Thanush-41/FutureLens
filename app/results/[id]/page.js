@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter, useParams } from 'next/navigation'
-import { Eye, Sparkles, BarChart3, Workflow, TrendingUp, TrendingDown, Calendar, Target, Shield, ChevronRight, AlertTriangle, Check, Loader2, Briefcase, Heart, Activity, Smile, Clock, MapPin, Quote, Users2, Gavel, Brain, X, Plus, Send } from 'lucide-react'
+import { Eye, Sparkles, BarChart3, Workflow, TrendingUp, TrendingDown, Calendar, Target, Shield, ChevronRight, AlertTriangle, Check, Loader2, Briefcase, Heart, Activity, Smile, Clock, MapPin, Quote, Users2, Gavel, Brain, X, Plus, Send, FileText, Scale, Swords, ArrowRight, Award } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogTrigger } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
@@ -184,6 +184,11 @@ export default function ResultsPage() {
           </div>
         </section>
 
+        {/* Executive Summary (Agent 7) - PRIME REAL ESTATE */}
+        {data.consensus?.recommendation && (
+          <ExecutiveSummary consensus={data.consensus} />
+        )}
+
         {/* Board of Directors CTA card */}
         <BoardCTA data={data} />
 
@@ -253,6 +258,11 @@ export default function ResultsPage() {
             </section>
           )
         })()}
+
+        {/* Dissent Analysis (from Agent 7) */}
+        {data.consensus?.dissent && (
+          <DissentAnalysis dissent={data.consensus.dissent} board={data.board} />
+        )}
 
         {/* Financial Dashboard */}
         <section className="mt-14 animate-fade-up delay-300">
@@ -782,6 +792,291 @@ function AdvisorCard({ advisor: a, meta, custom = false }) {
         </div>
       </div>
     </div>
+  )
+}
+
+// =====================================================
+// EXECUTIVE SUMMARY (Agent 7 - Consensus)
+// =====================================================
+function ExecutiveSummary({ consensus }) {
+  const r = consensus.recommendation || {}
+  const ps = pathStyle[r.recommended_path] || pathStyle.balanced
+  const sourceMeta = {
+    financial: { label: 'Financial', icon: BarChart3, color: 'emerald' },
+    career:    { label: 'Career',    icon: Briefcase, color: 'blue' },
+    lifestyle: { label: 'Lifestyle', icon: Heart, color: 'pink' },
+    board:     { label: 'Board',     icon: Users2, color: 'violet' },
+  }
+  const sevColor = { high: 'red', medium: 'amber', low: 'emerald' }
+
+  return (
+    <section className="mt-10 animate-fade-up delay-100">
+      <div className="gradient-border rounded-2xl p-7 md:p-9 relative overflow-hidden">
+        {/* Glow accent */}
+        <div className={`absolute -top-32 -right-32 w-96 h-96 rounded-full bg-${ps.color}-500/30 opacity-30 blur-3xl pointer-events-none`} />
+        <div className="absolute inset-0 glow-purple opacity-20 pointer-events-none" />
+
+        <div className="relative">
+          {/* Label */}
+          <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
+            <div className="flex items-center gap-2 text-xs uppercase tracking-widest text-violet-400 font-mono">
+              <FileText className="w-3 h-3" />
+              <span>Executive Summary</span>
+              <span className="text-white/30">·</span>
+              <span className="text-white/40">Agent 7 · Consensus</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className={`px-3 py-1 rounded-full bg-${ps.color}-500/10 border border-${ps.color}-500/30 text-${ps.color}-400 text-xs font-mono uppercase tracking-widest flex items-center gap-1.5`}>
+                <Award className="w-3 h-3" /> {ps.label} Path
+              </div>
+              <div className="px-3 py-1 rounded-full bg-white/5 border border-white/10 text-white/80 text-xs font-mono">
+                {r.confidence}% confidence
+              </div>
+            </div>
+          </div>
+
+          {/* Headline */}
+          <h2 className="text-2xl md:text-3xl font-semibold tracking-tight text-gradient leading-tight max-w-4xl">
+            {r.headline}
+          </h2>
+
+          {/* Executive summary paragraph */}
+          <p className="mt-5 text-white/70 leading-relaxed max-w-4xl text-base">
+            {r.executive_summary}
+          </p>
+
+          {/* Confidence meter */}
+          <div className="mt-7 max-w-md">
+            <div className="flex items-center justify-between text-[10px] uppercase tracking-widest text-white/40 font-mono mb-1.5">
+              <span>Conviction</span>
+              <span>{r.confidence}/100</span>
+            </div>
+            <div className="h-1.5 bg-white/5 rounded-full overflow-hidden">
+              <div className={`h-full bg-gradient-to-r from-${ps.color}-500 to-${ps.color}-300 rounded-full transition-all`} style={{ width: `${r.confidence}%` }} />
+            </div>
+          </div>
+
+          {/* 4-quadrant grid */}
+          <div className="mt-8 grid md:grid-cols-2 lg:grid-cols-4 gap-4">
+            {/* Top Opportunities */}
+            <div className="rounded-xl border border-emerald-500/15 bg-emerald-500/[0.03] p-5">
+              <div className="text-[10px] uppercase tracking-widest text-emerald-400 font-mono mb-3 flex items-center gap-1.5">
+                <TrendingUp className="w-3 h-3" /> Top Opportunities
+              </div>
+              <ul className="space-y-3">
+                {(r.top_opportunities || []).map((o, i) => (
+                  <li key={i}>
+                    <div className="text-sm text-white/90 font-medium leading-snug">{o.title}</div>
+                    <p className="text-xs text-white/55 leading-relaxed mt-1">{o.description}</p>
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            {/* Top Risks */}
+            <div className="rounded-xl border border-red-500/15 bg-red-500/[0.03] p-5">
+              <div className="text-[10px] uppercase tracking-widest text-red-400 font-mono mb-3 flex items-center gap-1.5">
+                <AlertTriangle className="w-3 h-3" /> Top Risks
+              </div>
+              <ul className="space-y-3">
+                {(r.top_risks || []).map((o, i) => {
+                  const sc = sevColor[o.severity] || 'amber'
+                  return (
+                    <li key={i}>
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="text-sm text-white/90 font-medium leading-snug flex-1">{o.title}</div>
+                        <span className={`text-[9px] font-mono uppercase tracking-widest text-${sc}-400 px-1.5 py-0.5 rounded-full bg-${sc}-500/10 border border-${sc}-500/20 flex-shrink-0`}>{o.severity}</span>
+                      </div>
+                      <p className="text-xs text-white/55 leading-relaxed mt-1">{o.description}</p>
+                    </li>
+                  )
+                })}
+              </ul>
+            </div>
+
+            {/* Supporting Reasons */}
+            <div className="rounded-xl border border-violet-500/15 bg-violet-500/[0.03] p-5">
+              <div className="text-[10px] uppercase tracking-widest text-violet-400 font-mono mb-3 flex items-center gap-1.5">
+                <Scale className="w-3 h-3" /> Supporting Reasons
+              </div>
+              <ul className="space-y-3">
+                {(r.supporting_reasons || []).map((o, i) => {
+                  const m = sourceMeta[o.source] || sourceMeta.financial
+                  const Icon = m.icon
+                  return (
+                    <li key={i} className="flex gap-2">
+                      <div className={`w-5 h-5 rounded-md bg-${m.color}-500/10 border border-${m.color}-500/20 flex items-center justify-center flex-shrink-0 mt-0.5`}>
+                        <Icon className={`w-2.5 h-2.5 text-${m.color}-400`} />
+                      </div>
+                      <div>
+                        <div className={`text-[9px] uppercase tracking-widest font-mono text-${m.color}-400`}>{m.label}</div>
+                        <div className="text-xs text-white/75 leading-snug">{o.point}</div>
+                      </div>
+                    </li>
+                  )
+                })}
+              </ul>
+            </div>
+
+            {/* Action Items */}
+            <div className="rounded-xl border border-amber-500/15 bg-amber-500/[0.03] p-5">
+              <div className="text-[10px] uppercase tracking-widest text-amber-400 font-mono mb-3 flex items-center gap-1.5">
+                <Target className="w-3 h-3" /> Action Items
+              </div>
+              <ul className="space-y-2.5">
+                {(r.action_items || []).map((a, i) => (
+                  <li key={i} className="flex gap-2 text-xs">
+                    <div className="w-4 h-4 rounded-full bg-amber-500/10 border border-amber-500/30 flex items-center justify-center flex-shrink-0 mt-0.5">
+                      <span className="text-[9px] font-mono text-amber-400">{i + 1}</span>
+                    </div>
+                    <span className="text-white/75 leading-snug">{a}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  )
+}
+
+// =====================================================
+// DISSENT ANALYSIS
+// =====================================================
+function DissentAnalysis({ dissent, board }) {
+  // Helper to find advisor meta by id (default or custom)
+  const allBoard = board?.board || []
+  const findAdvisor = (id) => allBoard.find(a => a.advisor_id === id)
+  const getMeta = (id) => advisorMeta[id]
+
+  return (
+    <section className="mt-14 animate-fade-up delay-200">
+      <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
+        <div>
+          <div className="text-xs uppercase tracking-widest text-violet-400 mb-1 font-mono flex items-center gap-2">
+            <Swords className="w-3 h-3" /> Dissent Analysis
+          </div>
+          <h2 className="text-2xl font-semibold tracking-tight">Where the board agrees — and clashes</h2>
+        </div>
+        <div className="text-xs text-white/40 font-mono">Trade-offs over single answers</div>
+      </div>
+
+      {/* Agreements */}
+      {dissent.agreements?.length > 0 && (
+        <div className="gradient-border rounded-2xl p-6 mb-5">
+          <div className="text-[10px] uppercase tracking-widest text-emerald-400 font-mono mb-4 flex items-center gap-1.5">
+            <Check className="w-3 h-3" /> Strong Agreement Across the Board
+          </div>
+          <div className="grid md:grid-cols-3 gap-3">
+            {dissent.agreements.map((a, i) => (
+              <div key={i} className="rounded-xl bg-emerald-500/[0.04] border border-emerald-500/15 p-4 flex gap-3">
+                <div className="w-6 h-6 rounded-full bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center flex-shrink-0 mt-0.5">
+                  <Check className="w-3 h-3 text-emerald-400" />
+                </div>
+                <p className="text-sm text-white/80 leading-relaxed">{a}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Disagreements - split-view cards */}
+      {dissent.disagreements?.length > 0 && (
+        <div className="space-y-4 mb-5">
+          {dissent.disagreements.map((dg, i) => (
+            <div key={i} className="gradient-border rounded-2xl p-6 relative overflow-hidden">
+              <div className="absolute inset-0 bg-gradient-to-r from-blue-500/[0.04] via-transparent to-amber-500/[0.04] pointer-events-none" />
+              <div className="relative">
+                <div className="flex items-center justify-center mb-5">
+                  <div className="px-4 py-1.5 rounded-full bg-violet-500/10 border border-violet-500/30 text-violet-300 text-[11px] font-mono uppercase tracking-widest">
+                    {dg.topic}
+                  </div>
+                </div>
+
+                <div className="grid md:grid-cols-[1fr_auto_1fr] gap-4 items-stretch">
+                  {/* Side A */}
+                  <div className="rounded-xl border border-blue-500/20 bg-blue-500/[0.04] p-5">
+                    <p className="text-sm text-white/85 leading-relaxed mb-4 italic">&ldquo;{dg.stance_a}&rdquo;</p>
+                    <div className="text-[10px] uppercase tracking-widest text-blue-400 font-mono mb-2">Supported by</div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      {(dg.advisors_a || []).map(id => {
+                        const m = getMeta(id)
+                        if (!m) return <span key={id} className="text-xs text-white/60 capitalize">{id}</span>
+                        return (
+                          <div key={id} className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-white/5 border border-white/10">
+                            <div className={`w-5 h-5 rounded-full bg-gradient-to-br ${m.from} ${m.to} flex items-center justify-center text-white text-[9px] font-semibold`}>{m.initials}</div>
+                            <span className="text-[11px] text-white/75">{m.name.split(' ')[0]}</span>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+
+                  {/* VS divider */}
+                  <div className="flex md:flex-col items-center justify-center px-2 py-2 md:py-0">
+                    <div className="h-px md:h-full md:w-px w-full bg-gradient-to-r md:bg-gradient-to-b from-transparent via-white/15 to-transparent flex-1" />
+                    <div className="px-3 py-1.5 rounded-full bg-[#0a0a0b] border border-white/15 text-[10px] font-mono uppercase tracking-widest text-white/60 my-2">vs</div>
+                    <div className="h-px md:h-full md:w-px w-full bg-gradient-to-r md:bg-gradient-to-b from-transparent via-white/15 to-transparent flex-1" />
+                  </div>
+
+                  {/* Side B */}
+                  <div className="rounded-xl border border-amber-500/20 bg-amber-500/[0.04] p-5">
+                    <p className="text-sm text-white/85 leading-relaxed mb-4 italic">&ldquo;{dg.stance_b}&rdquo;</p>
+                    <div className="text-[10px] uppercase tracking-widest text-amber-400 font-mono mb-2">Supported by</div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      {(dg.advisors_b || []).map(id => {
+                        const m = getMeta(id)
+                        if (!m) return <span key={id} className="text-xs text-white/60 capitalize">{id}</span>
+                        return (
+                          <div key={id} className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-white/5 border border-white/10">
+                            <div className={`w-5 h-5 rounded-full bg-gradient-to-br ${m.from} ${m.to} flex items-center justify-center text-white text-[9px] font-semibold`}>{m.initials}</div>
+                            <span className="text-[11px] text-white/75">{m.name.split(' ')[0]}</span>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Tradeoff line */}
+                {dg.tradeoff && (
+                  <div className="mt-5 pt-4 border-t border-white/5 flex items-start gap-2">
+                    <Scale className="w-3.5 h-3.5 text-white/40 flex-shrink-0 mt-0.5" />
+                    <p className="text-xs text-white/55 leading-relaxed">
+                      <span className="text-white/40 font-mono uppercase tracking-widest text-[9px] mr-1.5">THE REAL TRADEOFF:</span>
+                      {dg.tradeoff}
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Key tradeoffs */}
+      {dissent.key_tradeoffs?.length > 0 && (
+        <div className="gradient-border rounded-2xl p-6">
+          <div className="text-[10px] uppercase tracking-widest text-amber-400 font-mono mb-4 flex items-center gap-1.5">
+            <Scale className="w-3 h-3" /> Trade-offs You&apos;re Implicitly Accepting
+          </div>
+          <div className="grid md:grid-cols-3 gap-3">
+            {dissent.key_tradeoffs.map((t, i) => (
+              <div key={i} className="rounded-xl border border-white/10 bg-white/[0.02] p-4">
+                <div className="text-[10px] uppercase tracking-widest text-emerald-400 font-mono mb-1.5">You gain</div>
+                <p className="text-sm text-white/85 leading-snug mb-3">{t.gain}</p>
+                <div className="flex items-center gap-2 text-white/30 mb-2">
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </div>
+                <div className="text-[10px] uppercase tracking-widest text-red-400 font-mono mb-1.5">You give up</div>
+                <p className="text-sm text-white/85 leading-snug">{t.cost}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </section>
   )
 }
 

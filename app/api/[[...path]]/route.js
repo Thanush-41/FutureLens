@@ -365,6 +365,146 @@ async function runSingleAdvisor({ name, profile, decision, scenarios }) {
 }
 
 // =====================================================
+// AGENT 7: Consensus & Dissent Analysis
+// =====================================================
+const consensusSchema = {
+  type: 'object',
+  properties: {
+    recommendation: {
+      type: 'object',
+      properties: {
+        recommended_path: { type: 'string', enum: ['conservative', 'balanced', 'aggressive'] },
+        confidence: { type: 'integer', description: '0-100 overall confidence in recommendation' },
+        headline: { type: 'string', description: 'A punchy 10-15 word executive headline summarizing the final recommendation' },
+        executive_summary: { type: 'string', description: '3-4 sentence McKinsey-style executive summary stating the verdict and primary reasoning' },
+        top_opportunities: {
+          type: 'array',
+          description: '3-4 top opportunities synthesized from all agents',
+          items: {
+            type: 'object',
+            properties: {
+              title: { type: 'string', description: '3-6 word punchy title' },
+              description: { type: 'string', description: '1-2 sentence detail' },
+            },
+            required: ['title', 'description'],
+          },
+        },
+        top_risks: {
+          type: 'array',
+          description: '3-4 top risks synthesized from all agents',
+          items: {
+            type: 'object',
+            properties: {
+              title: { type: 'string', description: '3-6 word punchy title' },
+              description: { type: 'string', description: '1-2 sentence detail' },
+              severity: { type: 'string', enum: ['low', 'medium', 'high'] },
+            },
+            required: ['title', 'description', 'severity'],
+          },
+        },
+        supporting_reasons: {
+          type: 'array',
+          description: '4-6 specific reasons. Each cites which agent the insight came from.',
+          items: {
+            type: 'object',
+            properties: {
+              source: { type: 'string', enum: ['financial', 'career', 'lifestyle', 'board'] },
+              point: { type: 'string', description: '1 sentence specific insight' },
+            },
+            required: ['source', 'point'],
+          },
+        },
+        action_items: {
+          type: 'array',
+          description: '3-5 concrete next steps the user should take this month',
+          items: { type: 'string' },
+        },
+      },
+      required: ['recommended_path', 'confidence', 'headline', 'executive_summary', 'top_opportunities', 'top_risks', 'supporting_reasons', 'action_items'],
+    },
+    dissent: {
+      type: 'object',
+      properties: {
+        agreements: {
+          type: 'array',
+          description: '2-3 things ALL board members and analytical agents agree on',
+          items: { type: 'string' },
+        },
+        disagreements: {
+          type: 'array',
+          description: '2-3 specific points where the board fundamentally disagrees',
+          items: {
+            type: 'object',
+            properties: {
+              topic: { type: 'string', description: '2-4 word topic name e.g. "Risk Appetite", "Time Horizon"' },
+              stance_a: { type: 'string', description: 'One side\'s position in 1 sentence' },
+              stance_b: { type: 'string', description: 'The opposing position in 1 sentence' },
+              advisors_a: { type: 'array', items: { type: 'string' }, description: 'advisor_ids on side A' },
+              advisors_b: { type: 'array', items: { type: 'string' }, description: 'advisor_ids on side B' },
+              tradeoff: { type: 'string', description: '1 sentence on the underlying tradeoff' },
+            },
+            required: ['topic', 'stance_a', 'stance_b', 'advisors_a', 'advisors_b', 'tradeoff'],
+          },
+        },
+        key_tradeoffs: {
+          type: 'array',
+          description: '3 key tradeoffs the user is implicitly making',
+          items: {
+            type: 'object',
+            properties: {
+              gain: { type: 'string', description: 'What is gained' },
+              cost: { type: 'string', description: 'What is sacrificed' },
+            },
+            required: ['gain', 'cost'],
+          },
+        },
+      },
+      required: ['agreements', 'disagreements', 'key_tradeoffs'],
+    },
+  },
+  required: ['recommendation', 'dissent'],
+}
+
+const CONSENSUS_SYSTEM = `You are Agent 7: the Consensus & Dissent Analyst for FutureLens. You synthesize the work of all other agents into a single executive recommendation, AND surface where the board genuinely disagrees.
+
+INPUTS YOU RECEIVE:
+- The user profile and decision
+- 3 scenario paths (conservative, balanced, aggressive)
+- Financial agent: per-path projections and risk
+- Career agent: per-path career outcomes
+- Lifestyle agent: per-path lifestyle scores
+- Board of Directors: 6 advisors with their preferred path and opinions
+
+YOUR JOB:
+
+1) RECOMMENDATION — Produce a McKinsey-style executive summary:
+   - A bold but specific recommendation (which path and why)
+   - 3-4 top opportunities and 3-4 top risks distilled across all agents
+   - 4-6 supporting reasons, EACH citing which agent provided the insight (financial / career / lifestyle / board)
+   - 3-5 action items the user can act on this month
+   - Punchy headline (10-15 words)
+
+2) DISSENT ANALYSIS — Reveal trade-offs:
+   - 2-3 strong agreements across the board and analytical agents
+   - 2-3 genuine disagreements with both sides, the specific advisors on each side, and the underlying tradeoff
+   - 3 key tradeoffs the user is implicitly accepting (gain vs cost)
+
+TONE: Confident, precise, slightly understated. Like a senior strategy consultant briefing a CEO. No fluff. JSON only.`
+
+async function runConsensus({ profile, decision, scenarios, financial, career, lifestyle, board }) {
+  const pathsSum = scenarios.paths.map(p => `[${p.type}] ${p.title} — ${p.summary}`).join('\n')
+  const finSum = (financial?.paths || []).map(f => `[${f.path_type}] score=${f.financial_score} risk=${f.financial_risk_score} ending_savings=${f.ending_savings} growth=${f.income_growth_pct}% summary=${f.summary}`).join('\n')
+  const carSum = (career?.paths || []).map(c => `[${c.path_type}] career=${c.career_score} growth=${c.growth_score} opp=${c.opportunity_score} note=${c.explanation}`).join('\n')
+  const lifeSum = (lifestyle?.paths || []).map(l => `[${l.path_type}] lifestyle=${l.lifestyle_score} stress=${l.stress_level} happy=${l.happiness_index} wlb=${l.work_life_balance} note=${l.explanation}`).join('\n')
+  const boardSum = (board?.board || []).map(b => `[${b.advisor_id}] votes=${b.preferred_path} (${b.confidence}%) | "${b.one_line_advice}" | ${b.overall_opinion}`).join('\n')
+  const cons = board?.consensus
+  const consSum = cons ? `Board votes: conservative=${cons.conservative_votes}, balanced=${cons.balanced_votes}, aggressive=${cons.aggressive_votes} (majority: ${cons.majority_path})` : ''
+
+  const prompt = `${profileToContext(profile)}\n\nDECISION: ${decision}\n\nSCENARIO PATHS:\n${pathsSum}\n\nFINANCIAL AGENT:\n${finSum}\n\nCAREER AGENT:\n${carSum}\n\nLIFESTYLE AGENT:\n${lifeSum}\n\nBOARD ADVISORS:\n${boardSum}\n\n${consSum}\n\nProduce the executive recommendation and dissent analysis.`
+  return generateJSON({ system: CONSENSUS_SYSTEM, prompt, schema: consensusSchema, temperature: 0.6, maxOutputTokens: 6144 })
+}
+
+// =====================================================
 // ROUTES
 // =====================================================
 export async function POST(req, { params }) {
@@ -395,10 +535,13 @@ export async function POST(req, { params }) {
         runBoard({ profile, decision, scenarios }).catch(e => ({ error: e.message })),
       ])
 
+      // Agent 7: Consensus & Dissent — synthesizes all of the above
+      const consensus = await runConsensus({ profile, decision, scenarios, financial, career, lifestyle, board }).catch(e => ({ error: e.message }))
+
       const id = uuidv4()
       const doc = {
         id, decision, profile_snapshot: profile,
-        scenarios, financial, career, lifestyle, board,
+        scenarios, financial, career, lifestyle, board, consensus,
         createdAt: new Date().toISOString(),
       }
       try { const db = await getDb(); await db.collection('simulations').insertOne({ ...doc }) } catch (e) { console.error('Mongo sim err:', e.message) }
