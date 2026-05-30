@@ -513,6 +513,13 @@ export default function ResultsPage() {
             </div>
           </section>
         )}
+
+        {/* Future Self Simulator */}
+        {data.consensus?.recommendation && <FutureSelfSection data={data} />}
+
+        {/* Final Report card */}
+        <FinalReport data={data} router={router} />
+
         <div className="mt-14 gradient-border rounded-2xl p-8 text-center animate-fade-up delay-400 relative overflow-hidden">
           <div className="absolute inset-0 glow-purple opacity-40" />
           <div className="relative">
@@ -1076,6 +1083,263 @@ function DissentAnalysis({ dissent, board }) {
           </div>
         </div>
       )}
+    </section>
+  )
+}
+
+// =====================================================
+// FUTURE SELF SIMULATOR
+// =====================================================
+function FutureSelfSection({ data }) {
+  const [tab, setTab] = useState(5)
+  const [threads, setThreads] = useState({ 5: [], 10: [] })
+  const [draft, setDraft] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [loadedTabs, setLoadedTabs] = useState({})
+  const path = data.consensus?.recommendation?.recommended_path || 'balanced'
+  const pathStyleCur = pathStyle[path] || pathStyle.balanced
+
+  const ageNow = data.profile_snapshot?.age || 30
+  const futureAge = ageNow + tab
+
+  // Auto-load opening reflection on first tab visit
+  useEffect(() => {
+    if (loadedTabs[tab]) return
+    setLoadedTabs(prev => ({ ...prev, [tab]: true }))
+    fetchReply(tab, '', [])
+  }, [tab])
+
+  async function fetchReply(yearsAhead, message, history) {
+    setLoading(true)
+    try {
+      const res = await fetch('/api/simulate/future-chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          profile: data.profile_snapshot,
+          decision: data.decision,
+          scenarios: data.scenarios,
+          recommendation: data.consensus.recommendation,
+          years_ahead: yearsAhead,
+          history,
+          message,
+        }),
+      })
+      const j = await res.json()
+      if (!res.ok) throw new Error(j.error || 'Failed')
+      setThreads(prev => ({ ...prev, [yearsAhead]: [...history, ...(message ? [{ role: 'user', text: message }] : []), { role: 'assistant', text: j.text }] }))
+    } catch (e) {
+      setThreads(prev => ({ ...prev, [yearsAhead]: [...history, ...(message ? [{ role: 'user', text: message }] : []), { role: 'assistant', text: '(could not reach future self: ' + e.message + ')' }] }))
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const send = () => {
+    if (!draft.trim() || loading) return
+    const msg = draft.trim()
+    setDraft('')
+    fetchReply(tab, msg, threads[tab])
+  }
+
+  const messages = threads[tab] || []
+  const initials = 'YOU'
+  const quickAsks = tab === 5
+    ? ['What surprised you most?', 'What would you do differently?', 'How is your family handling it?']
+    : ['Looking back, was it worth it?', 'What was the biggest mistake?', 'What lesson defines this decade?']
+
+  return (
+    <section className="mt-14 animate-fade-up">
+      <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
+        <div>
+          <div className="text-xs uppercase tracking-widest text-violet-400 mb-1 font-mono flex items-center gap-2">
+            <Sparkles className="w-3 h-3" /> Future Self Simulator
+          </div>
+          <h2 className="text-2xl font-semibold tracking-tight">Talk to your future self</h2>
+          <p className="text-sm text-white/55 mt-1">A simulated version of you, having lived the chosen path. Ask anything.</p>
+        </div>
+        {/* Tabs */}
+        <div className="inline-flex gap-1 p-1 rounded-full border border-white/10 bg-white/[0.02]">
+          {[5, 10].map(y => (
+            <button key={y} onClick={() => setTab(y)}
+              className={`px-4 py-1.5 rounded-full text-xs font-medium transition ${tab === y ? 'bg-white text-black' : 'text-white/60 hover:text-white'}`}>
+              +{y} years
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="gradient-border rounded-2xl overflow-hidden relative">
+        {/* Header strip */}
+        <div className={`px-6 py-4 border-b border-white/5 flex items-center gap-4 bg-gradient-to-r from-${pathStyleCur.color}-500/[0.08] to-transparent`}>
+          <div className={`w-12 h-12 rounded-full bg-gradient-to-br from-${pathStyleCur.color}-400 to-${pathStyleCur.color}-600 flex items-center justify-center text-white text-xs font-bold relative shadow-lg`}>
+            +{tab}
+            <div className={`absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-emerald-400 border-2 border-[#0a0a0b]`} />
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="text-sm font-medium">You, age {futureAge}</div>
+            <div className="text-xs text-white/45 font-mono">
+              {tab} years into the {pathStyleCur.label.toLowerCase()} path · {data.profile_snapshot?.location || 'somewhere'}
+            </div>
+          </div>
+          <div className="text-[10px] uppercase tracking-widest text-emerald-400 font-mono flex items-center gap-1.5">
+            <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+            simulated
+          </div>
+        </div>
+
+        {/* Messages */}
+        <div className="px-6 py-6 space-y-4 min-h-[280px] max-h-[480px] overflow-y-auto bg-[#0a0a0b]/40">
+          {messages.length === 0 && loading && (
+            <div className="flex items-center gap-3 text-white/40 text-sm">
+              <Loader2 className="w-4 h-4 animate-spin" />
+              <span>Your future self is gathering their thoughts...</span>
+            </div>
+          )}
+          {messages.map((m, i) => (
+            <div key={i} className={`flex gap-3 ${m.role === 'user' ? 'flex-row-reverse' : ''}`}>
+              <div className={`w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-semibold flex-shrink-0 ${m.role === 'user' ? 'bg-white/10 text-white/70' : `bg-gradient-to-br from-${pathStyleCur.color}-400 to-${pathStyleCur.color}-600 text-white`}`}>
+                {m.role === 'user' ? 'NOW' : '+' + tab}
+              </div>
+              <div className={`max-w-[80%] rounded-2xl px-4 py-2.5 text-sm leading-relaxed ${m.role === 'user' ? 'bg-white/8 text-white/85' : `bg-${pathStyleCur.color}-500/10 border border-${pathStyleCur.color}-500/20 text-white/90`}`}>
+                {m.text}
+              </div>
+            </div>
+          ))}
+          {loading && messages.length > 0 && (
+            <div className="flex gap-3">
+              <div className={`w-8 h-8 rounded-full bg-gradient-to-br from-${pathStyleCur.color}-400 to-${pathStyleCur.color}-600 flex items-center justify-center text-[10px] text-white font-semibold flex-shrink-0`}>+{tab}</div>
+              <div className={`bg-${pathStyleCur.color}-500/10 border border-${pathStyleCur.color}-500/20 rounded-2xl px-4 py-3 inline-flex gap-1`}>
+                <span className="w-1.5 h-1.5 rounded-full bg-white/40 animate-bounce" style={{ animationDelay: '0ms' }} />
+                <span className="w-1.5 h-1.5 rounded-full bg-white/40 animate-bounce" style={{ animationDelay: '150ms' }} />
+                <span className="w-1.5 h-1.5 rounded-full bg-white/40 animate-bounce" style={{ animationDelay: '300ms' }} />
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Quick asks + input */}
+        <div className="px-6 py-4 border-t border-white/5 bg-white/[0.01]">
+          <div className="flex flex-wrap gap-1.5 mb-3">
+            {quickAsks.map(q => (
+              <button key={q} onClick={() => { setDraft(q); setTimeout(() => fetchReply(tab, q, threads[tab]), 50) }}
+                disabled={loading}
+                className="px-2.5 py-1 rounded-full text-[11px] border border-white/10 text-white/65 hover:bg-white/5 hover:border-white/20 transition disabled:opacity-40">
+                {q}
+              </button>
+            ))}
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="flex-1 gradient-border rounded-full p-1">
+              <Input value={draft} onChange={e => setDraft(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && send()}
+                placeholder={`Ask your +${tab}-year self anything...`}
+                className="bg-transparent border-0 h-10 px-4 focus-visible:ring-0 placeholder:text-white/25 text-sm" />
+            </div>
+            <Button onClick={send} disabled={!draft.trim() || loading}
+              className="h-12 w-12 rounded-full bg-white text-black hover:bg-white/90 disabled:opacity-40 p-0 flex items-center justify-center">
+              {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+            </Button>
+          </div>
+        </div>
+      </div>
+    </section>
+  )
+}
+
+// =====================================================
+// FINAL REPORT CARD (the 11th step)
+// =====================================================
+function FinalReport({ data, router }) {
+  const r = data.consensus?.recommendation
+  const path = r?.recommended_path || 'balanced'
+  const ps = pathStyle[path] || pathStyle.balanced
+
+  const handlePrint = () => {
+    if (typeof window !== 'undefined') window.print()
+  }
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(window.location.href)
+    } catch {}
+  }
+
+  return (
+    <section className="mt-14 animate-fade-up">
+      <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
+        <div>
+          <div className="text-xs uppercase tracking-widest text-violet-400 mb-1 font-mono flex items-center gap-2">
+            <FileText className="w-3 h-3" /> Final Report
+          </div>
+          <h2 className="text-2xl font-semibold tracking-tight">Your decision dossier is ready</h2>
+        </div>
+      </div>
+
+      <div className="gradient-border rounded-2xl p-7 md:p-8 relative overflow-hidden">
+        <div className={`absolute -top-24 -right-24 w-80 h-80 rounded-full bg-${ps.color}-500/20 opacity-30 blur-3xl pointer-events-none`} />
+        <div className="relative">
+          {/* Stamp */}
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-[10px] font-mono uppercase tracking-widest mb-5">
+            <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+            7 agents completed · 11 steps
+          </div>
+
+          <h3 className="text-3xl md:text-4xl font-semibold tracking-tight text-gradient leading-tight max-w-3xl">
+            {r?.headline || 'Recommendation ready'}
+          </h3>
+
+          {/* Stat row */}
+          <div className="mt-7 grid grid-cols-2 md:grid-cols-4 gap-4 max-w-3xl">
+            <div>
+              <div className="text-[10px] uppercase tracking-widest text-white/40 font-mono">Recommended</div>
+              <div className={`text-base font-medium text-${ps.color}-300 capitalize mt-1`}>{path} Path</div>
+            </div>
+            <div>
+              <div className="text-[10px] uppercase tracking-widest text-white/40 font-mono">Conviction</div>
+              <div className="text-base font-medium mt-1">{r?.confidence}<span className="text-white/30 text-xs">/100</span></div>
+            </div>
+            <div>
+              <div className="text-[10px] uppercase tracking-widest text-white/40 font-mono">Scenarios</div>
+              <div className="text-base font-medium mt-1">{data.scenarios?.paths?.length || 0}</div>
+            </div>
+            <div>
+              <div className="text-[10px] uppercase tracking-widest text-white/40 font-mono">Voices</div>
+              <div className="text-base font-medium mt-1">{(data.board?.board?.length || 0)} advisors</div>
+            </div>
+          </div>
+
+          {/* The 11 steps timeline */}
+          <div className="mt-8">
+            <div className="text-[10px] uppercase tracking-widest text-white/40 font-mono mb-3">The 11 steps that produced this report</div>
+            <div className="flex flex-wrap gap-1.5">
+              {[
+                'Question', 'Profile', 'Scenarios', 'Financial', 'Career', 'Lifestyle',
+                'Board', 'Dissent', 'Consensus', 'Future Self', 'Report'
+              ].map((s, i) => (
+                <div key={s} className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/5 border border-emerald-500/15">
+                  <div className="w-3 h-3 rounded-full bg-emerald-500/20 flex items-center justify-center">
+                    <Check className="w-2 h-2 text-emerald-400" strokeWidth={3} />
+                  </div>
+                  <span className="text-[10px] font-mono text-white/65">{i + 1}. {s}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Actions */}
+          <div className="mt-8 flex flex-wrap gap-2">
+            <Button onClick={handlePrint} className="h-10 px-4 rounded-full bg-white text-black hover:bg-white/90 text-sm font-medium">
+              <FileText className="w-3.5 h-3.5 mr-1.5" /> Save / Print PDF
+            </Button>
+            <Button onClick={handleCopy} variant="ghost" className="h-10 px-4 rounded-full border border-white/10 hover:bg-white/5 text-sm">
+              Copy link
+            </Button>
+            <Button onClick={() => router.push('/decide')} variant="ghost" className="h-10 px-4 rounded-full border border-white/10 hover:bg-white/5 text-sm">
+              New simulation <ChevronRight className="w-3.5 h-3.5 ml-1" />
+            </Button>
+          </div>
+        </div>
+      </div>
     </section>
   )
 }

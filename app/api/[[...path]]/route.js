@@ -505,6 +505,70 @@ async function runConsensus({ profile, decision, scenarios, financial, career, l
 }
 
 // =====================================================
+// FUTURE SELF CHAT
+// =====================================================
+async function runFutureSelfChat({ profile, decision, scenarios, recommendation, years_ahead, history = [], message }) {
+  const path = recommendation?.recommended_path || 'balanced'
+  const chosenScenario = scenarios?.paths?.find(p => p.type === path)
+  const pathContext = chosenScenario ? `THE PATH YOU CHOSE (${path}): ${chosenScenario.title}\n${chosenScenario.narrative}\nTimeline: ${(chosenScenario.timeline||[]).map(t => `Y${t.year}: ${t.milestone}`).join(' | ')}` : ''
+
+  const system = `You are the USER themselves, ${years_ahead} years in the future, having lived through the consequences of the decision they're currently making.
+
+WHO YOU ARE NOW (${years_ahead} years from today):
+- Today they are ${profile.age}, you are ${(profile.age || 30) + years_ahead}. ${years_ahead === 10 ? 'You\'ve had a full decade to live with this choice.' : 'You\'ve had 5 years to see how this played out.'}
+- Original location: ${profile.location || 'unknown'}. Today's occupation: ${profile.occupation || 'unknown'}
+- Decision they faced: "${decision}"
+- They chose the ${path.toUpperCase()} path.
+
+${pathContext}
+
+EXECUTIVE SUMMARY THAT WAS GIVEN TO THEM:
+${recommendation?.executive_summary || ''}
+
+TOP OPPORTUNITIES TO REFLECT ON: ${(recommendation?.top_opportunities || []).map(o => o.title).join(', ')}
+TOP RISKS THAT WERE FLAGGED: ${(recommendation?.top_risks || []).map(o => o.title).join(', ')}
+
+HOW TO SPEAK:
+- First person, warm but honest, like talking to your younger self.
+- Be SPECIFIC: invent realistic details about what happened (companies, names, milestones, regrets, victories).
+- Reference concrete years/moments. Mention 1-2 mistakes you wish you avoided.
+- Each response should be 2-5 sentences. Don't be preachy. Sound human.
+- Avoid generic platitudes. Reference details from the actual scenario.
+- Never break character. Never say "as an AI". Never disclaim.
+
+If the user (your past self) asks a question, answer it directly from your future vantage point.
+If they have not asked anything yet (opening message), share a warm opening reflection of 3-4 short sentences that includes: where you are now, 1 thing that went right, 1 thing you wish you'd done differently.
+
+Respond as plain text. No JSON, no markdown headers.`
+
+  const turns = []
+  for (const h of history) {
+    turns.push({ role: h.role === 'assistant' ? 'model' : 'user', parts: [{ text: h.text }] })
+  }
+  if (message && message.trim()) {
+    turns.push({ role: 'user', parts: [{ text: message }] })
+  } else if (turns.length === 0) {
+    turns.push({ role: 'user', parts: [{ text: '(no question yet — share your opening reflection)' }] })
+  }
+
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${process.env.GEMINI_MODEL || 'gemini-flash-latest'}:generateContent`
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-goog-api-key': process.env.GEMINI_API_KEY },
+    body: JSON.stringify({
+      systemInstruction: { parts: [{ text: system }] },
+      contents: turns,
+      generationConfig: { temperature: 0.9, maxOutputTokens: 600 },
+    }),
+  })
+  if (!res.ok) throw new Error('Future-self ' + res.status + ': ' + (await res.text()).slice(0, 200))
+  const data = await res.json()
+  const text = data?.candidates?.[0]?.content?.parts?.map(p => p.text).filter(Boolean).join('').trim() || ''
+  if (!text) throw new Error('Empty future-self response')
+  return { text }
+}
+
+// =====================================================
 // ROUTES
 // =====================================================
 export async function POST(req, { params }) {
@@ -554,6 +618,15 @@ export async function POST(req, { params }) {
       if (!name || !name.trim()) return NextResponse.json({ error: 'Advisor name is required.' }, { status: 400 })
       if (!decision || !profile || !scenarios) return NextResponse.json({ error: 'Missing decision/profile/scenarios.' }, { status: 400 })
       const result = await runSingleAdvisor({ name: name.trim(), profile, decision, scenarios })
+      return NextResponse.json(result)
+    }
+
+    if (path === 'simulate/future-chat') {
+      const body = await req.json()
+      const { profile, decision, scenarios, recommendation, years_ahead, history, message } = body
+      if (!profile || !decision || !scenarios || !recommendation) return NextResponse.json({ error: 'Missing context for future-chat.' }, { status: 400 })
+      const ya = parseInt(years_ahead) === 10 ? 10 : 5
+      const result = await runFutureSelfChat({ profile, decision, scenarios, recommendation, years_ahead: ya, history: history || [], message: message || '' })
       return NextResponse.json(result)
     }
 
